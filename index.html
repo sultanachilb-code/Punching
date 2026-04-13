@@ -732,98 +732,109 @@ async function parsePDF(file) {
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     showStatus("info", `📄 PDF loaded — ${pdf.numPages} pages. Extracting attendance data…`);
 
-    const employees   = {};  // id → { id, name, days:{} }
+    const employees   = {};
     const allDatesOrdered = [];
     const allDatesSet = {};
 
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page    = await pdf.getPage(pageNum);
-      const content = await page.getTextContent();
+      const page      = await pdf.getPage(pageNum);
+      const viewport  = page.getViewport({ scale: 1 });
+      const pageH     = viewport.height;  // use viewport height for correct y conversion
+      const content   = await page.getTextContent();
 
-      // Build word list using LEFT EDGE (x) — PDF.js item.transform[4] is x0
-      // item.width can be 0 for some fonts — never use it for column matching
-      const words = [];
-      content.items.forEach(item => {
-        const t = item.str.trim();
-        if (!t) return;
-        const x0 = item.transform[4];           // LEFT edge — reliable
-        const y  = -(item.transform[5]);         // negate: PDF y is bottom-up
-        words.push({ text:t, x:x0, y });
-      });
-
-      // Sort top-down then left-right
-      words.sort((a,b) => Math.abs(a.y-b.y) < 0.5 ? a.x-b.x : a.y-b.y);
-
-      // Find date header row — DD/MM pattern
       const dateRe = /^\d{2}\/\d{2}$/;
       const timeRe = /^\d{2}:\d{2}$/;
       const empRe  = /^\d{5}$/;
 
+      // Build words: x = left edge (transform[4]), y = TOP-DOWN (pageH - transform[5])
+      // This gives positive y increasing downward — same as pdfplumber's "top"
+      const words = [];
+      content.items.forEach(item => {
+        const t = item.str.trim();
+        if (!t) return;
+        words.push({
+          text: t,
+          x:    item.transform[4],           // left edge x0
+          y:    pageH - item.transform[5]    // top-down y: larger = lower on page
+        });
+      });
+
+      // Sort: top-down first (smaller y first), then left-right
+      words.sort((a,b) => Math.abs(a.y - b.y) < 1 ? a.x - b.x : a.y - b.y);
+
+      // Collect ALL DD/MM words on this page for the column map
       const dateWords = words.filter(w => dateRe.test(w.text));
       if (!dateWords.length) continue;
-      const headerY = dateWords[0].y;
 
-      // Column map: x0 → date  (punch x0 aligns exactly to date x0)
+      // Build colMap: x0 → date string
+      // Use ALL date words (not filtered by header y) to catch all 13 columns
       const colMap = {};
       dateWords.forEach(w => {
-        colMap[w.x] = w.text;
+        // Only add each date once per x position (first occurrence = header row)
+        if (!colMap[w.x]) colMap[w.x] = w.text;
         if (!allDatesSet[w.text]) {
           allDatesSet[w.text] = true;
           allDatesOrdered.push(w.text);
         }
       });
-      const colXs = Object.keys(colMap).map(Number).sort((a,b)=>a-b);
-      // Column width = typical spacing between adjacent date columns
-      const colWidth = colXs.length > 1 ? colXs[1] - colXs[0] : 22;
+      const colXs    = Object.keys(colMap).map(Number).sort((a,b) => a - b);
+      // Column width from actual column spacing — use median gap for robustness
+      const gaps     = colXs.slice(1).map((cx,i) => cx - colXs[i]);
+      const colWidth = gaps.length ? gaps.sort((a,b)=>a-b)[Math.floor(gaps.length/2)] : 22;
 
-      // Employee rows: 5-digit IDs below the header
-      const empWords = words.filter(w => empRe.test(w.text) && w.y > headerY + 5);
+      // Find the header y — first row that contains a date word
+      const headerY = dateWords.reduce((mn, w) => Math.min(mn, w.y), Infinity);
+
+      // Employee IDs: 5-digit numbers below the header row
+      const empWords = words.filter(w => empRe.test(w.text) && w.y > headerY + 3);
 
       empWords.forEach(empW => {
         const empId = empW.text;
         const empY  = empW.y;
 
-        // Employee name: same y-row, to the right, not a time/date/ID
+        // Employee name: same y-row, right of ID, not a time/date/number
         const nameWds = words.filter(w =>
-          Math.abs(w.y - empY) < 4 && w.x > empW.x + 20 &&
+          Math.abs(w.y - empY) < 4 && w.x > empW.x + 15 &&
           !timeRe.test(w.text) && !dateRe.test(w.text) && !empRe.test(w.text)
         );
-        let empName = nameWds.sort((a,b)=>a.x-b.x).map(w=>w.text).join(" ")
+        let empName = nameWds.sort((a,b) => a.x - b.x).map(w => w.text).join(" ")
           .replace(/\s+\d+[:\.]\d+.*$/, "").trim();
 
-        // Punch block: time tokens within 3 sub-rows below this employee (~55pt)
+        // Punch block: time tokens in the 3 rows below the employee row
+        // Employee row ~8pt, 3 punch rows × ~8pt = ~24pt total
+        // Use 60pt to be generous, then take only first 3 row groups
         const blockWords = words.filter(w =>
-          w.y >= empY - 2 && w.y <= empY + 58 && timeRe.test(w.text)
+          w.y > empY && w.y <= empY + 60 && timeRe.test(w.text)
         );
 
-        // Group into rows by y (snap to 3pt grid for stability)
+        // Group punch words into rows using 2pt snap grid
         const rowsMap = {};
         blockWords.forEach(w => {
-          const rk = Math.round(w.y / 3) * 3;
-          (rowsMap[rk] = rowsMap[rk]||[]).push(w);
+          const rk = Math.round(w.y / 2) * 2;
+          (rowsMap[rk] = rowsMap[rk] || []).push(w);
         });
-        const rowKeys = Object.keys(rowsMap).map(Number).sort((a,b)=>a-b);
+        const rowKeys = Object.keys(rowsMap).map(Number).sort((a,b) => a - b);
 
-        // Match each time to its date column using LEFT EDGE x0 alignment
+        // Match each time to its date column by x0 proximity
+        // Use full colWidth as tolerance (max real deviation is <1pt)
         const dayData = {};
         rowKeys.slice(0, 3).forEach(rk => {
           rowsMap[rk].forEach(w => {
-            // Find the date column whose x0 is nearest to this word's x0
             let nearestX = colXs[0];
             let minDist  = Math.abs(colXs[0] - w.x);
             colXs.forEach(cx => {
               const d = Math.abs(cx - w.x);
               if (d < minDist) { minDist = d; nearestX = cx; }
             });
-            // Accept if within 60% of column width (robust to minor PDF rendering shifts)
-            if (minDist < colWidth * 0.6) {
+            // Accept match within full column width — rejects right-margin totals (395pt away)
+            if (minDist < colWidth) {
               const date = colMap[nearestX];
-              (dayData[date] = dayData[date]||[]).push(w.text);
+              (dayData[date] = dayData[date] || []).push(w.text);
             }
           });
         });
 
-        // Convert day punches to \n-joined strings, skip all-zero days
+        // Build days object — skip all-zero entries
         const days = {};
         Object.entries(dayData).forEach(([date, punches]) => {
           if (!punches.every(p => p === "00:00")) {
@@ -832,7 +843,7 @@ async function parsePDF(file) {
         });
 
         if (!employees[empId]) {
-          employees[empId] = { id:empId, name:empName, days:{} };
+          employees[empId] = { id: empId, name: empName, days: {} };
         } else if (!employees[empId].name && empName) {
           employees[empId].name = empName;
         }
@@ -840,16 +851,16 @@ async function parsePDF(file) {
       });
     }
 
-    // Sort dates chronologically (MM then DD)
+    // Sort dates chronologically: by month then day (DD/MM format)
     allDatesOrdered.sort((a,b) => {
-      const ai = parseInt(a.slice(3,5)+a.slice(0,2));
-      const bi = parseInt(b.slice(3,5)+b.slice(0,2));
+      const ai = parseInt(a.slice(3,5)) * 100 + parseInt(a.slice(0,2));
+      const bi = parseInt(b.slice(3,5)) * 100 + parseInt(b.slice(0,2));
       return ai - bi;
     });
 
-    finishParse({ employees:Object.values(employees), dates:allDatesOrdered });
+    finishParse({ employees: Object.values(employees), dates: allDatesOrdered });
   } catch(err) {
-    showStatus("error", "❌ PDF parse error: "+err.message);
+    showStatus("error", "❌ PDF parse error: " + err.message);
     console.error(err);
   }
 }
