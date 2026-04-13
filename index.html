@@ -1119,8 +1119,8 @@ function renderRanges() {
   const tbody = document.getElementById("rangesBody");
   tbody.innerHTML = RANGES.map((r,i) => `
     <tr>
-      <td><input type="text" value="${r.from||''}" onchange="RANGES[${i}].from=this.value" placeholder="DD/MM/YYYY"></td>
-      <td><input type="text" value="${r.to||''}" onchange="RANGES[${i}].to=this.value" placeholder="DD/MM/YYYY"></td>
+      <td><input type="text" value="${normDateStr(r.from)||''}" onblur="RANGES[${i}].from=normDateStr(this.value);this.value=RANGES[${i}].from" placeholder="DD/MM/YYYY e.g. 01/03/2026"></td>
+      <td><input type="text" value="${normDateStr(r.to)||''}" onblur="RANGES[${i}].to=normDateStr(this.value);this.value=RANGES[${i}].to" placeholder="DD/MM/YYYY e.g. 31/03/2026"></td>
       <td><input type="number" value="${r.headcount||46}" onchange="RANGES[${i}].headcount=Number(this.value)" style="width:90px"></td>
       <td><input type="text" value="${escHtml(r.note||'')}" onchange="RANGES[${i}].note=this.value" placeholder="Optional note"></td>
       <td><button class="btn-del-range" onclick="delRange(${i})">✕</button></td>
@@ -1134,10 +1134,36 @@ function addRange() {
 
 function delRange(i) { RANGES.splice(i,1); renderRanges(); }
 
+// Normalize any date string to DD/MM/YYYY (zero-padded) before saving
+function normDateStr(s) {
+  if (!s) return "";
+  s = String(s).trim();
+  // Already correct
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+  // D/M/YYYY or D/M or DD/MM
+  const m = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
+  if (m) {
+    return m[1].padStart(2,"0") + "/" + m[2].padStart(2,"0") + "/" + (m[3] || "2026");
+  }
+  return s; // return as-is if unrecognised
+}
+
 async function saveRanges() {
+  // Normalise all dates before sending
+  const normalized = RANGES.map(r => ({
+    ...r,
+    from: normDateStr(r.from),
+    to:   normDateStr(r.to)
+  }));
   try {
-    const res = await api({ action:"saveRanges", flagship:SESSION.flagship, username:SESSION.username, ranges:RANGES });
-    res.ok ? toast("Headcount ranges saved","success") : toast("Save failed: "+res.error,"error");
+    const res = await api({ action:"saveRanges", flagship:SESSION.flagship, username:SESSION.username, ranges:normalized });
+    if (res.ok) {
+      RANGES = normalized; // update local state with normalised dates
+      renderRanges();
+      toast("Headcount ranges saved","success");
+    } else {
+      toast("Save failed: "+res.error,"error");
+    }
   } catch(e) { toast("Network error","error"); }
 }
 
