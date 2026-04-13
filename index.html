@@ -6,7 +6,7 @@
 <title>ABC Soft Services — Punching System</title>
 <style>
 /* ============================================================
-   ABC Punching System v2.0.0
+   ABC Punching System v2.1.0
    Theme: ABC Mall — Crisp White / Deep Navy / Gold Accent
    Font: Barlow (corporate, readable, clean)
    ============================================================ */
@@ -386,7 +386,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
     <div class="login-right">
       <h2>Punching System</h2>
       <p>Import BPM punching reports, review attendance, manage exceptional approvals, and generate automated deduction reports — all in one place.</p>
-      <span class="login-right-badge">v2.0.0</span>
+      <span class="login-right-badge">v2.1.0</span>
     </div>
   </div>
 </div>
@@ -396,7 +396,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">ABC Punching System</div>
-      <div class="topbar-ver">v2.0.0</div>
+      <div class="topbar-ver">v2.1.0</div>
       <div class="topbar-flagship" id="topFlagship">—</div>
     </div>
     <div class="topbar-right">
@@ -800,11 +800,11 @@ async function parsePDF(file) {
         let empName = nameWds.sort((a,b) => a.x - b.x).map(w => w.text).join(" ")
           .replace(/\s+\d+[:\.]\d+.*$/, "").trim();
 
-        // Punch block: time tokens in the 3 rows below the employee row
-        // Employee row ~8pt, 3 punch rows × ~8pt = ~24pt total
-        // Use 60pt to be generous, then take only first 3 row groups
+        // Punch block: time tokens on same line AND below the employee row
+        // IN punches are on the SAME line as the employee ID (same y)
+        // Use >= empY - 2 to include same-line words; +60pt captures all 3 punch rows
         const blockWords = words.filter(w =>
-          w.y > empY && w.y <= empY + 60 && timeRe.test(w.text)
+          w.y >= empY - 2 && w.y <= empY + 60 && timeRe.test(w.text)
         );
 
         // Group punch words into rows using 2pt snap grid
