@@ -988,7 +988,18 @@ async function loadFinance() {
   document.getElementById("financeTableWrapper").innerHTML =
     `<div class="state-loading"><div class="spinner"></div>Calculating…</div>`;
   try {
-    const res = await api({ action:"getFinance", flagship:SESSION.flagship, username:SESSION.username });
+    // Send RANGES directly so GAS never needs to read them from the sheet
+    // This bypasses all Sheets date-format ambiguity for the headcount lookup
+    const res = await api({
+      action:    "getFinance",
+      flagship:  SESSION.flagship,
+      username:  SESSION.username,
+      ranges:    RANGES.map(r => ({
+        from:      normDateStr(r.from),
+        to:        normDateStr(r.to),
+        headcount: Number(r.headcount) || 46
+      }))
+    });
     if (!res.ok) throw new Error(res.error);
     FINANCE_DATA = res;
     renderFinance(res);
