@@ -542,9 +542,16 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
             <tbody id="rangesBody"></tbody>
           </table>
         </div>
-        <div class="flex-end mt16">
+        <div class="flex-end mt16" style="gap:12px">
+          <button class="btn btn-outline btn-sm" onclick="runDebug()" style="border-color:var(--orange);color:var(--orange)">🔍 Debug Ranges</button>
           <button class="btn btn-blue" onclick="saveRanges()">💾 Save Ranges</button>
         </div>
+      </div>
+
+      <!-- Debug Panel -->
+      <div class="card" id="debugCard" style="display:none">
+        <div class="card-title" style="color:var(--orange)">🔍 Debug Output — Raw GAS Response</div>
+        <pre id="debugOutput" style="font-size:11px;font-family:var(--mono);background:var(--bg2);padding:16px;border-radius:8px;overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto;color:var(--text)"></pre>
       </div>
 
       <!-- Danger zone -->
@@ -1234,6 +1241,25 @@ async function api(payload) {
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
+}
+
+async function runDebug() {
+  const card = document.getElementById("debugCard");
+  const out  = document.getElementById("debugOutput");
+  card.style.display = "block";
+  out.textContent = "⏳ Calling GAS debug endpoint…";
+  try {
+    const res = await api({
+      action:   "debug",
+      flagship: SESSION.flagship,
+      ranges:   RANGES.map(r => ({
+        from: normDateStr(r.from), to: normDateStr(r.to), headcount: Number(r.headcount)||46
+      }))
+    });
+    out.textContent = JSON.stringify(res.debug || res, null, 2);
+  } catch(e) {
+    out.textContent = "Error: " + e.message;
+  }
 }
 
 function toast(msg, type="info") {
