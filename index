@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ABC Soft Services — Punching System</title>
+<style>
+/* ============================================================
+   ABC Soft Services Punching System | v1.0.0
+   Theme: Industrial-Corporate | White / Deep Navy / Purple
+   ============================================================ */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --navy:    #0D1B2A;
+  --navy2:   #162236;
+  --navy3:   #1E3050;
+  --purple:  #6C4FE8;
+  --purple2: #8B6FF0;
+  --purple3: #2D1F6E;
+  --white:   #F5F7FA;
+  --grey1:   #8A97AB;
+  --grey2:   #C8D0DC;
+  --grey3:   #E8ECF2;
+  --red:     #E85050;
+  --orange:  #E8A030;
+  --green:   #30C88A;
+  --yellow:  #F5C842;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+  --radius: 8px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.18);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--sans);
+  background: var(--navy);
+  color: var(--white);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ---- SCROLLBAR ---- */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--navy2); }
+::-webkit-scrollbar-thumb { background: var(--purple3); border-radius: 3px; }
+
+/* ============================================================
+   LOGIN
+   ============================================================ */
+#loginScreen {
+  display: flex; align-items: center; justify-content: center;
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--navy) 0%, var(--navy3) 100%);
+}
+
+.login-card {
+  width: 420px;
+  background: var(--navy2);
+  border: 1px solid var(--navy3);
+  border-radius: 16px;
+  padding: 48px 40px;
+  box-shadow: var(--shadow), 0 0 80px rgba(108,79,232,0.08);
+}
+
+.login-logo {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 36px;
+}
+.login-logo-mark {
+  width: 44px; height: 44px;
+  background: linear-gradient(135deg, var(--purple), var(--purple2));
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-weight: 600; font-size: 16px; color: #fff;
+}
+.login-brand { line-height: 1.2; }
+.login-brand-main { font-size: 15px; font-weight: 700; color: var(--white); letter-spacing: 0.02em; }
+.login-brand-sub  { font-size: 11px; color: var(--grey1); letter-spacing: 0.08em; text-transform: uppercase; }
+
+.login-title { font-size: 24px; font-weight: 700; margin-bottom: 6px; }
+.login-sub   { font-size: 13px; color: var(--grey1); margin-bottom: 32px; }
+
+.form-group { margin-bottom: 18px; }
+.form-group label { display: block; font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--grey1); margin-bottom: 8px; }
+.form-group input {
+  width: 100%; padding: 12px 16px;
+  background: var(--navy); border: 1px solid var(--navy3);
+  border-radius: var(--radius); color: var(--white);
+  font-family: var(--mono); font-size: 14px;
+  transition: border-color .2s;
+  outline: none;
+}
+.form-group input:focus { border-color: var(--purple); }
+.form-group input::placeholder { color: var(--grey1); }
+
+.btn-primary {
+  width: 100%; padding: 14px;
+  background: linear-gradient(135deg, var(--purple), var(--purple2));
+  border: none; border-radius: var(--radius);
+  color: #fff; font-family: var(--sans); font-size: 14px; font-weight: 600;
+  cursor: pointer; letter-spacing: 0.04em;
+  transition: opacity .2s, transform .1s;
+}
+.btn-primary:hover   { opacity: 0.92; }
+.btn-primary:active  { transform: scale(0.99); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.login-error {
+  margin-top: 14px; padding: 10px 14px;
+  background: rgba(232,80,80,0.12); border: 1px solid rgba(232,80,80,0.3);
+  border-radius: var(--radius); color: var(--red);
+  font-size: 13px; display: none;
+}
+
+/* ============================================================
+   APP SHELL
+   ============================================================ */
+#app { display: none; flex-direction: column; min-height: 100vh; }
+
+/* ---- TOPBAR ---- */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 24px; height: 60px;
+  background: var(--navy2); border-bottom: 1px solid var(--navy3);
+  position: sticky; top: 0; z-index: 100;
+}
+.topbar-left  { display: flex; align-items: center; gap: 20px; }
+.topbar-brand { font-family: var(--mono); font-size: 13px; font-weight: 600; letter-spacing: 0.04em; }
+.topbar-ver   { font-family: var(--mono); font-size: 10px; color: var(--grey1); padding: 2px 8px; background: var(--navy3); border-radius: 20px; }
+.topbar-flagship {
+  padding: 4px 14px; border-radius: 20px;
+  background: linear-gradient(135deg, var(--purple3), rgba(108,79,232,0.3));
+  font-size: 12px; font-weight: 600; letter-spacing: 0.06em;
+  border: 1px solid var(--purple);
+}
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.topbar-user  { font-size: 13px; color: var(--grey1); }
+.btn-logout {
+  padding: 6px 14px; background: transparent;
+  border: 1px solid var(--navy3); border-radius: var(--radius);
+  color: var(--grey1); font-size: 12px; cursor: pointer;
+  transition: border-color .2s, color .2s;
+}
+.btn-logout:hover { border-color: var(--red); color: var(--red); }
+
+/* ---- TABS ---- */
+.tabs {
+  display: flex; padding: 0 24px;
+  background: var(--navy2); border-bottom: 1px solid var(--navy3);
+  gap: 2px;
+}
+.tab-btn {
+  padding: 14px 20px; background: transparent; border: none;
+  color: var(--grey1); font-size: 13px; font-weight: 500;
+  cursor: pointer; position: relative; transition: color .2s;
+  display: flex; align-items: center; gap: 7px;
+}
+.tab-btn:hover { color: var(--white); }
+.tab-btn.active { color: var(--purple2); }
+.tab-btn.active::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+  height: 2px; background: var(--purple2); border-radius: 2px 2px 0 0;
+}
+.tab-icon { font-size: 14px; }
+
+/* ---- MAIN CONTENT ---- */
+.main-content { flex: 1; padding: 24px; overflow-y: auto; }
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ============================================================
+   UPLOAD TAB
+   ============================================================ */
+.upload-zone {
+  border: 2px dashed var(--navy3); border-radius: 12px;
+  padding: 60px; text-align: center; cursor: pointer;
+  transition: border-color .2s, background .2s;
+  background: var(--navy2); margin-bottom: 24px;
+}
+.upload-zone:hover, .upload-zone.dragover {
+  border-color: var(--purple); background: rgba(108,79,232,0.06);
+}
+.upload-icon { font-size: 48px; margin-bottom: 16px; }
+.upload-title { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+.upload-sub   { font-size: 13px; color: var(--grey1); }
+#fileInput    { display: none; }
+
+.upload-status {
+  padding: 16px 20px; border-radius: var(--radius);
+  font-family: var(--mono); font-size: 13px;
+  margin-bottom: 16px; display: none;
+  line-height: 1.8;
+}
+.upload-status.info    { background: rgba(108,79,232,0.12); border: 1px solid rgba(108,79,232,0.3); color: var(--purple2); }
+.upload-status.success { background: rgba(48,200,138,0.12); border: 1px solid rgba(48,200,138,0.3); color: var(--green); }
+.upload-status.error   { background: rgba(232,80,80,0.12);  border: 1px solid rgba(232,80,80,0.3);  color: var(--red); }
+
+/* ============================================================
+   ATTENDANCE GRID
+   ============================================================ */
+.section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 18px;
+}
+.section-title { font-size: 16px; font-weight: 700; }
+.section-meta  { font-size: 12px; color: var(--grey1); font-family: var(--mono); }
+
+.grid-wrapper { overflow-x: auto; border-radius: var(--radius); }
+.grid-table {
+  width: 100%; border-collapse: collapse; min-width: 900px;
+  font-size: 12px;
+}
+.grid-table th {
+  background: var(--navy3); padding: 8px 10px;
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.05em; white-space: nowrap;
+  border: 1px solid rgba(255,255,255,0.05);
+  position: sticky; top: 0; z-index: 2;
+}
+.grid-table td {
+  padding: 6px 10px; border: 1px solid rgba(255,255,255,0.05);
+  white-space: nowrap; font-family: var(--mono); font-size: 11px;
+  background: var(--navy2);
+}
+.grid-table tr:hover td { background: var(--navy3); }
+.grid-table td.emp-id   { color: var(--grey1); font-size: 10px; }
+.grid-table td.emp-name { font-family: var(--sans); font-weight: 500; font-size: 12px; }
+
+/* Cell status colors */
+.cell-ok      { color: var(--green); }
+.cell-off     { color: var(--grey1); }
+.cell-missing { background: rgba(232,80,80,0.12) !important; color: var(--red); font-weight: 600; }
+.cell-empty   { color: var(--navy3); }
+
+/* ============================================================
+   FINANCE REPORT
+   ============================================================ */
+.finance-summary {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px; margin-bottom: 28px;
+}
+.kpi-card {
+  background: var(--navy2); border: 1px solid var(--navy3);
+  border-radius: 12px; padding: 20px 24px;
+}
+.kpi-label { font-size: 11px; color: var(--grey1); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
+.kpi-value { font-family: var(--mono); font-size: 24px; font-weight: 700; }
+.kpi-value.red    { color: var(--red); }
+.kpi-value.green  { color: var(--green); }
+.kpi-value.orange { color: var(--orange); }
+.kpi-value.purple { color: var(--purple2); }
+
+/* Finance table */
+.finance-table {
+  width: 100%; border-collapse: collapse; font-size: 12px;
+}
+.finance-table th {
+  background: var(--navy3); padding: 10px 14px;
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  letter-spacing: 0.05em; text-align: left;
+  border: 1px solid rgba(255,255,255,0.05);
+}
+.finance-table td {
+  padding: 9px 14px; border: 1px solid rgba(255,255,255,0.05);
+  background: var(--navy2); font-family: var(--mono); font-size: 12px;
+}
+.finance-table tr:hover td { background: var(--navy3); }
+.finance-table td.deduction { color: var(--red); font-weight: 600; }
+.finance-table td.surplus   { color: var(--green); }
+.finance-table td.zero      { color: var(--grey1); }
+.finance-table tfoot td {
+  background: var(--navy3); font-weight: 700; color: var(--white);
+}
+
+/* Missing punch breakdown */
+.breakdown-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 12px; margin-top: 16px;
+}
+.breakdown-card {
+  background: var(--navy2); border: 1px solid rgba(232,80,80,0.2);
+  border-radius: var(--radius); padding: 14px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.breakdown-name { font-size: 13px; font-weight: 500; }
+.breakdown-id   { font-size: 10px; color: var(--grey1); font-family: var(--mono); }
+.breakdown-count {
+  padding: 3px 10px; background: rgba(232,80,80,0.15);
+  border-radius: 20px; color: var(--red);
+  font-family: var(--mono); font-size: 13px; font-weight: 600;
+}
+
+/* ============================================================
+   CONFIG TAB
+   ============================================================ */
+.config-card {
+  background: var(--navy2); border: 1px solid var(--navy3);
+  border-radius: 12px; padding: 28px; margin-bottom: 20px;
+  max-width: 600px;
+}
+.config-card-title { font-size: 14px; font-weight: 700; margin-bottom: 20px; color: var(--purple2); }
+.config-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.config-field label { display: block; font-size: 11px; color: var(--grey1); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+.config-field input {
+  width: 100%; padding: 10px 14px;
+  background: var(--navy); border: 1px solid var(--navy3);
+  border-radius: var(--radius); color: var(--white);
+  font-family: var(--mono); font-size: 14px; outline: none;
+  transition: border-color .2s;
+}
+.config-field input:focus { border-color: var(--purple); }
+.btn-save {
+  padding: 10px 24px;
+  background: linear-gradient(135deg, var(--purple), var(--purple2));
+  border: none; border-radius: var(--radius);
+  color: #fff; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: opacity .2s;
+}
+.btn-save:hover { opacity: 0.9; }
+
+/* ============================================================
+   DANGER ZONE
+   ============================================================ */
+.danger-zone {
+  background: rgba(232,80,80,0.06); border: 1px solid rgba(232,80,80,0.2);
+  border-radius: 12px; padding: 24px; max-width: 600px;
+}
+.danger-zone-title { font-size: 14px; font-weight: 700; color: var(--red); margin-bottom: 8px; }
+.danger-zone-desc  { font-size: 13px; color: var(--grey1); margin-bottom: 16px; }
+.btn-danger {
+  padding: 10px 24px; background: transparent;
+  border: 1px solid var(--red); border-radius: var(--radius);
+  color: var(--red); font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: background .2s;
+}
+.btn-danger:hover { background: rgba(232,80,80,0.1); }
+
+/* ============================================================
+   LOADING / EMPTY STATES
+   ============================================================ */
+.state-loading, .state-empty {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; padding: 60px 40px; color: var(--grey1);
+  font-size: 14px; gap: 12px;
+}
+.state-icon { font-size: 40px; }
+
+.spinner {
+  width: 32px; height: 32px;
+  border: 3px solid var(--navy3);
+  border-top-color: var(--purple);
+  border-radius: 50%; animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ============================================================
+   TOAST NOTIFICATIONS
+   ============================================================ */
+#toast-container {
+  position: fixed; bottom: 24px; right: 24px;
+  display: flex; flex-direction: column; gap: 10px; z-index: 9999;
+}
+.toast {
+  padding: 12px 20px; border-radius: var(--radius);
+  font-size: 13px; font-weight: 500; max-width: 360px;
+  animation: toastIn .3s ease; box-shadow: var(--shadow);
+}
+.toast.success { background: var(--green);  color: #0D1B2A; }
+.toast.error   { background: var(--red);    color: #fff; }
+.toast.info    { background: var(--purple); color: #fff; }
+@keyframes toastIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+
+/* ============================================================
+   UTILITIES
+   ============================================================ */
+.flex { display: flex; align-items: center; gap: 10px; }
+.mt16 { margin-top: 16px; }
+.mt24 { margin-top: 24px; }
+.btn-sm {
+  padding: 6px 14px; border-radius: var(--radius);
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  border: 1px solid var(--navy3); background: var(--navy2);
+  color: var(--grey2); transition: border-color .2s, color .2s;
+}
+.btn-sm:hover { border-color: var(--purple); color: var(--purple2); }
+
+/* Mobile adjustments */
+@media (max-width: 640px) {
+  .login-card { width: 95%; padding: 32px 24px; }
+  .main-content { padding: 16px; }
+  .finance-summary { grid-template-columns: repeat(2, 1fr); }
+  .tab-btn { padding: 12px 12px; font-size: 12px; }
+  .tab-btn span.tab-label { display: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- LOGIN -->
+<!-- ============================================================ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">
+      <div class="login-logo-mark">ABC</div>
+      <div class="login-brand">
+        <div class="login-brand-main">ABC Retail Property Group</div>
+        <div class="login-brand-sub">Soft Services · Punching System</div>
+      </div>
+    </div>
+    <h1 class="login-title">Welcome Back</h1>
+    <p class="login-sub">Sign in to access your flagship dashboard</p>
+    <div class="form-group">
+      <label>Username</label>
+      <input type="text" id="loginUser" placeholder="e.g. admin.vrd" autocomplete="username">
+    </div>
+    <div class="form-group">
+      <label>Password</label>
+      <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn-primary" id="loginBtn" onclick="doLogin()">Sign In</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- APP -->
+<!-- ============================================================ -->
+<div id="app">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="topbar-brand">ABC Punching System</div>
+      <div class="topbar-ver">v1.0.0</div>
+      <div class="topbar-flagship" id="topFlagship">—</div>
+    </div>
+    <div class="topbar-right">
+      <span class="topbar-user" id="topUser">—</span>
+      <button class="btn-logout" onclick="doLogout()">Sign Out</button>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('upload')" data-tab="upload">
+      <span class="tab-icon">⬆️</span> <span class="tab-label">Upload</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('attendance')" data-tab="attendance">
+      <span class="tab-icon">📋</span> <span class="tab-label">Attendance</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('finance')" data-tab="finance">
+      <span class="tab-icon">💰</span> <span class="tab-label">Finance Report</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('config')" data-tab="config">
+      <span class="tab-icon">⚙️</span> <span class="tab-label">Config</span>
+    </button>
+  </div>
+
+  <!-- Main -->
+  <div class="main-content">
+
+    <!-- ---- UPLOAD TAB ---- -->
+    <div class="tab-panel active" id="tab-upload">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Import Punching Data</div>
+          <div class="section-meta">Upload the Excel exported from BPM (ilovePDF converted). Only NEW days are imported.</div>
+        </div>
+      </div>
+
+      <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()"
+           ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
+        <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileSelect(event)">
+        <div class="upload-icon">📂</div>
+        <div class="upload-title">Drop BPM Excel file here</div>
+        <div class="upload-sub">or click to browse — supports .xlsx / .xls (ilovePDF converted)</div>
+      </div>
+
+      <div class="upload-status" id="uploadStatus"></div>
+
+      <div id="previewSection" style="display:none;">
+        <div class="section-header mt16">
+          <div class="section-title">Preview — <span id="previewCount">0</span> employees detected</div>
+          <button class="btn-primary" style="width:auto;padding:10px 28px;" onclick="confirmUpload()">
+            ✅ Confirm Import
+          </button>
+        </div>
+        <div class="grid-wrapper">
+          <table class="grid-table" id="previewTable"></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ---- ATTENDANCE TAB ---- -->
+    <div class="tab-panel" id="tab-attendance">
+      <div class="section-header">
+        <div>
+          <div class="section-title">Attendance Grid</div>
+          <div class="section-meta" id="attendanceMeta">—</div>
+        </div>
+        <div class="flex">
+          <button class="btn-sm" onclick="loadAttendance()">🔄 Refresh</button>
+          <button class="btn-sm" onclick="exportAttendance()">⬇️ Export</button>
+        </div>
+      </div>
+      <div id="attendanceContent">
+        <div class="state-empty"><div class="state-icon">📋</div>No data loaded yet</div>
+      </div>
+    </div>
+
+    <!-- ---- FINANCE TAB ---- -->
+    <div class="tab-panel" id="tab-finance">
+      <div class="section-header">
+        <div class="section-title">Finance Deduction Report</div>
+        <div class="flex">
+          <button class="btn-sm" onclick="loadFinance()">🔄 Refresh</button>
+          <button class="btn-sm" onclick="exportFinance()">⬇️ Export CSV</button>
+        </div>
+      </div>
+
+      <!-- KPI Summary -->
+      <div class="finance-summary" id="financeSummary">
+        <div class="kpi-card"><div class="kpi-label">Total Money Deduction</div><div class="kpi-value red" id="kpi-moneyDed">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Missing Punch Deduction</div><div class="kpi-value orange" id="kpi-mpDed">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Grand Total Deduction</div><div class="kpi-value red" id="kpi-total">—</div></div>
+        <div class="kpi-card"><div class="kpi-label">Total Missing Punches</div><div class="kpi-value purple" id="kpi-mp">—</div></div>
+      </div>
+
+      <!-- Daily breakdown table -->
+      <div class="section-header mt24">
+        <div class="section-title">Daily Breakdown</div>
+      </div>
+      <div class="grid-wrapper" id="financeTableWrapper">
+        <div class="state-empty"><div class="state-icon">💰</div>No finance data loaded</div>
+      </div>
+
+      <!-- Missing punch by employee -->
+      <div class="mt24">
+        <div class="section-header">
+          <div class="section-title">Missing Punches by Employee</div>
+        </div>
+        <div class="breakdown-grid" id="missingBreakdown"></div>
+      </div>
+    </div>
+
+    <!-- ---- CONFIG TAB ---- -->
+    <div class="tab-panel" id="tab-config">
+      <div class="config-card">
+        <div class="config-card-title">⚙️ Flagship Configuration</div>
+        <div class="config-row">
+          <div class="config-field">
+            <label>Target Headcount / Day</label>
+            <input type="number" id="cfg-target" placeholder="46">
+          </div>
+          <div class="config-field">
+            <label>Penalty $ per Missing Head</label>
+            <input type="number" id="cfg-penalty" placeholder="23">
+          </div>
+        </div>
+        <div class="config-row">
+          <div class="config-field">
+            <label>Number of Supervisors</label>
+            <input type="number" id="cfg-supCount" placeholder="4">
+          </div>
+          <div class="config-field">
+            <label>Supervisor Shift Hours</label>
+            <input type="number" id="cfg-supHours" placeholder="9">
+          </div>
+        </div>
+        <div class="config-row">
+          <div class="config-field">
+            <label>Overlap Threshold (hours)</label>
+            <input type="number" id="cfg-overlap" placeholder="8">
+          </div>
+        </div>
+        <button class="btn-save" onclick="saveConfig()">💾 Save Configuration</button>
+      </div>
+
+      <div class="danger-zone mt24">
+        <div class="danger-zone-title">⚠️ Danger Zone</div>
+        <div class="danger-zone-desc">Clear all attendance data for this flagship. Use this at the start of a new month. This action cannot be undone.</div>
+        <button class="btn-danger" onclick="confirmClearMonth()">🗑️ Clear Month Data</button>
+      </div>
+    </div>
+
+  </div><!-- /main-content -->
+</div><!-- /app -->
+
+<div id="toast-container"></div>
+
+<!-- ============================================================ -->
+<!-- JAVASCRIPT -->
+<!-- ============================================================ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ============================================================
+// CONFIG — UPDATE THIS BEFORE DEPLOYING
+// ============================================================
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxjRmc59YkhlHA_3qRumCbLq4zEc0WM3GyE9z9UEyD2Kcz8hbm5EmNFBStIT3snli82Zw/exec"; // ← paste your Apps Script web app URL
+
+// ============================================================
+// STATE
+// ============================================================
+let SESSION = null;          // { username, flagship, role, displayName }
+let PARSED_DATA = null;      // from last file parse
+let FINANCE_DATA = null;     // last loaded finance report
+let ATTENDANCE_DATA = null;  // last loaded attendance
+
+// ============================================================
+// AUTH
+// ============================================================
+async function doLogin() {
+  const username = document.getElementById("loginUser").value.trim();
+  const password = document.getElementById("loginPass").value;
+  if (!username || !password) { showLoginError("Please enter username and password."); return; }
+
+  const btn = document.getElementById("loginBtn");
+  btn.disabled = true; btn.textContent = "Signing in…";
+
+  try {
+    const res = await api({ action: "login", username, password });
+    if (res.ok) {
+      SESSION = res.user;
+      showApp();
+    } else {
+      showLoginError(res.error || "Login failed. Check your credentials.");
+    }
+  } catch(e) {
+    showLoginError("Connection error. Check GAS URL configuration.");
+  }
+  btn.disabled = false; btn.textContent = "Sign In";
+}
+
+function showLoginError(msg) {
+  const el = document.getElementById("loginError");
+  el.textContent = msg; el.style.display = "block";
+}
+
+function showApp() {
+  document.getElementById("loginScreen").style.display = "none";
+  document.getElementById("app").style.display = "flex";
+  document.getElementById("topUser").textContent = SESSION.displayName;
+  document.getElementById("topFlagship").textContent = SESSION.flagship === "ALL"
+    ? "All Flagships" : `${SESSION.flagship}`;
+
+  // Handle Enter key on login
+  loadConfig();
+}
+
+function doLogout() {
+  SESSION = null; PARSED_DATA = null; FINANCE_DATA = null; ATTENDANCE_DATA = null;
+  document.getElementById("loginScreen").style.display = "flex";
+  document.getElementById("app").style.display = "none";
+  document.getElementById("loginPass").value = "";
+  document.getElementById("loginError").style.display = "none";
+}
+
+document.addEventListener("keydown", e => {
+  if (e.key === "Enter" && document.getElementById("loginScreen").style.display !== "none") doLogin();
+});
+
+// ============================================================
+// TABS
+// ============================================================
+function switchTab(tab) {
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === tab));
+  document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id === `tab-${tab}`));
+  if (tab === "attendance" && !ATTENDANCE_DATA) loadAttendance();
+  if (tab === "finance"    && !FINANCE_DATA)    loadFinance();
+  if (tab === "config")                          loadConfig();
+}
+
+// ============================================================
+// FILE HANDLING & PARSING
+// ============================================================
+function handleDragOver(e) { e.preventDefault(); document.getElementById("uploadZone").classList.add("dragover"); }
+function handleDragLeave(e) { document.getElementById("uploadZone").classList.remove("dragover"); }
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById("uploadZone").classList.remove("dragover");
+  const file = e.dataTransfer.files[0];
+  if (file) parseFile(file);
+}
+function handleFileSelect(e) { const file = e.target.files[0]; if (file) parseFile(file); }
+
+function parseFile(file) {
+  showUploadStatus("info", `📂 Parsing: ${file.name} …`);
+  document.getElementById("previewSection").style.display = "none";
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb   = XLSX.read(e.target.result, { type: "array", cellText: true, cellNF: false });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" });
+      const parsed = parseBPMSheet(data);
+
+      if (!parsed || !parsed.employees.length) {
+        showUploadStatus("error", "❌ No employee data found. Ensure this is a valid BPM Excel export.");
+        return;
+      }
+
+      PARSED_DATA = parsed;
+      showUploadStatus("success",
+        `✅ Parsed successfully\n` +
+        `👥 Employees: ${parsed.employees.length}\n` +
+        `📅 Date range: ${parsed.dates[0]} → ${parsed.dates[parsed.dates.length-1]}\n` +
+        `📊 Total records: ${parsed.employees.reduce((s,e) => s + Object.keys(e.days).length, 0)}`
+      );
+      renderPreview(parsed);
+    } catch(err) {
+      showUploadStatus("error", "❌ Parse error: " + err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Parse the BPM-format sheet (converted from ilovePDF)
+function parseBPMSheet(rows) {
+  // Find header row: contains "Number" and "Name" in cols A/B
+  let headerRow = -1;
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const r = rows[i];
+    if (r && (r[0] === "Number" || r[1] === "Name")) { headerRow = i; break; }
+  }
+  if (headerRow === -1) throw new Error("Header row (Number/Name/dates) not found");
+
+  // Extract date columns: skip col 0 (Number), col 1 (Name), find date pattern DD/MM
+  const headers  = rows[headerRow];
+  const dateCols = []; // { colIdx, date }
+  for (let c = 2; c < headers.length; c++) {
+    const h = (headers[c] || "").trim();
+    if (/^\d{2}\/\d{2}$/.test(h)) dateCols.push({ c, date: h });
+    else if (/^\d{2}\/\d{2}\/\d{4}$/.test(h)) {
+      // Full date, take DD/MM portion
+      dateCols.push({ c, date: h.substring(0,5) });
+    }
+  }
+
+  if (!dateCols.length) throw new Error("No date columns found (expecting DD/MM format)");
+
+  // Collect employees: rows where col 0 is numeric
+  const employees = [];
+  for (let r = headerRow + 1; r < rows.length; r++) {
+    const row  = rows[r];
+    const empId = String(row[0] || "").trim();
+    const name  = String(row[1] || "").trim();
+    if (!empId || isNaN(Number(empId)) || !name) continue;
+
+    const days = {};
+    dateCols.forEach(({ c, date }) => {
+      const raw = (row[c] || "").toString().trim();
+      if (raw && raw !== "") days[date] = raw;
+    });
+
+    employees.push({ id: empId, name, days });
+  }
+
+  const dates = dateCols.map(d => d.date);
+  return { employees, dates };
+}
+
+function showUploadStatus(type, msg) {
+  const el = document.getElementById("uploadStatus");
+  el.className = `upload-status ${type}`;
+  el.textContent = msg;
+  el.style.display = "block";
+}
+
+// ============================================================
+// PREVIEW TABLE
+// ============================================================
+function renderPreview(parsed) {
+  document.getElementById("previewCount").textContent = parsed.employees.length;
+  const table = document.getElementById("previewTable");
+  const maxDays = Math.min(parsed.dates.length, 10); // show first 10 days in preview
+
+  let html = "<thead><tr><th>ID</th><th>Name</th>";
+  for (let i = 0; i < maxDays; i++) html += `<th>${parsed.dates[i]}</th>`;
+  if (parsed.dates.length > maxDays) html += `<th>+${parsed.dates.length - maxDays} more…</th>`;
+  html += "</tr></thead><tbody>";
+
+  parsed.employees.slice(0, 15).forEach(emp => {
+    html += `<tr><td class="emp-id">${emp.id}</td><td class="emp-name">${emp.name}</td>`;
+    for (let i = 0; i < maxDays; i++) {
+      const date = parsed.dates[i];
+      const raw  = emp.days[date] || "";
+      const res  = normalizePunch(raw);
+      if (!raw) {
+        html += `<td class="cell-empty">—</td>`;
+      } else if (res.status === "OFF") {
+        html += `<td class="cell-off">OFF</td>`;
+      } else if (res.status === "Missing Punch") {
+        html += `<td class="cell-missing">MP</td>`;
+      } else {
+        const hrs = Math.floor(res.minutes / 60);
+        const min = res.minutes % 60;
+        html += `<td class="cell-ok">${hrs}:${String(min).padStart(2,'0')}</td>`;
+      }
+    }
+    if (parsed.dates.length > maxDays) html += `<td class="cell-empty">…</td>`;
+    html += "</tr>";
+  });
+
+  if (parsed.employees.length > 15) {
+    html += `<tr><td colspan="${maxDays+2}" style="text-align:center;color:var(--grey1);padding:12px;">… and ${parsed.employees.length - 15} more employees</td></tr>`;
+  }
+  html += "</tbody>";
+  table.innerHTML = html;
+  document.getElementById("previewSection").style.display = "block";
+}
+
+// ============================================================
+// CONFIRM UPLOAD
+// ============================================================
+async function confirmUpload() {
+  if (!PARSED_DATA) return;
+  showUploadStatus("info", "⬆️ Uploading to Google Sheets…");
+  document.querySelector("#tab-upload .btn-primary").disabled = true;
+
+  try {
+    const res = await api({
+      action: "upload",
+      flagship: SESSION.flagship,
+      username: SESSION.username,
+      employees: PARSED_DATA.employees
+    });
+
+    if (res.ok) {
+      const s = res.stats;
+      showUploadStatus("success",
+        `✅ Import complete!\n` +
+        `📥 New records imported: ${s.new}\n` +
+        `⏭️  Already existing (skipped): ${s.skipped}\n` +
+        `👥 Employees processed: ${s.employees}`
+      );
+      ATTENDANCE_DATA = null;
+      FINANCE_DATA = null;
+      toast("Import successful — " + s.new + " new records", "success");
+    } else {
+      showUploadStatus("error", "❌ Upload failed: " + (res.error || "Unknown error"));
+    }
+  } catch(e) {
+    showUploadStatus("error", "❌ Network error: " + e.message);
+  }
+  document.querySelector("#tab-upload .btn-primary").disabled = false;
+}
+
+// ============================================================
+// ATTENDANCE
+// ============================================================
+async function loadAttendance() {
+  const el = document.getElementById("attendanceContent");
+  el.innerHTML = `<div class="state-loading"><div class="spinner"></div>Loading attendance data…</div>`;
+
+  try {
+    const res = await api({ action: "getProcessed", flagship: SESSION.flagship, username: SESSION.username });
+    if (!res.ok) throw new Error(res.error);
+
+    ATTENDANCE_DATA = res;
+    renderAttendanceGrid(res);
+  } catch(e) {
+    el.innerHTML = `<div class="state-empty"><div class="state-icon">❌</div>${e.message}</div>`;
+  }
+}
+
+function renderAttendanceGrid(data) {
+  const el   = document.getElementById("attendanceContent");
+  const meta = document.getElementById("attendanceMeta");
+
+  if (!data.employees || !data.employees.length) {
+    el.innerHTML = `<div class="state-empty"><div class="state-icon">📋</div>No attendance data. Upload a file first.</div>`;
+    meta.textContent = "No data";
+    return;
+  }
+
+  const days  = data.days;
+  const emps  = data.employees;
+  meta.textContent = `${emps.length} employees · ${days.length} days`;
+
+  let html = `<div class="grid-wrapper"><table class="grid-table"><thead><tr>
+    <th>ID</th><th>Employee Name</th>`;
+  days.forEach(d => html += `<th>${d}</th>`);
+  html += `</tr></thead><tbody>`;
+
+  emps.forEach(emp => {
+    html += `<tr><td class="emp-id">${emp.id}</td><td class="emp-name">${emp.name}</td>`;
+    days.forEach(d => {
+      const rec = emp.days[d];
+      if (!rec) {
+        html += `<td class="cell-empty">—</td>`;
+      } else if (rec.status === "OFF") {
+        html += `<td class="cell-off">OFF</td>`;
+      } else if (rec.status === "Missing Punch") {
+        html += `<td class="cell-missing">MP</td>`;
+      } else {
+        const hrs = Math.floor(rec.minutes / 60);
+        const min = rec.minutes % 60;
+        html += `<td class="cell-ok">${hrs}:${String(min).padStart(2,'0')}</td>`;
+      }
+    });
+    html += `</tr>`;
+  });
+  html += `</tbody></table></div>`;
+  el.innerHTML = html;
+}
+
+function exportAttendance() {
+  if (!ATTENDANCE_DATA) { toast("Load attendance data first", "error"); return; }
+  const { employees, days } = ATTENDANCE_DATA;
+  let csv = "ID,Name," + days.join(",") + "\n";
+  employees.forEach(emp => {
+    const row = [emp.id, `"${emp.name}"`];
+    days.forEach(d => {
+      const rec = emp.days[d];
+      if (!rec) row.push("");
+      else if (rec.status === "OFF") row.push("OFF");
+      else if (rec.status === "Missing Punch") row.push("Missing Punch");
+      else { const h = Math.floor(rec.minutes/60), m = rec.minutes%60; row.push(`${h}:${String(m).padStart(2,'0')}`); }
+    });
+    csv += row.join(",") + "\n";
+  });
+  downloadCSV(csv, `Attendance_${SESSION.flagship}_${today()}.csv`);
+}
+
+// ============================================================
+// FINANCE
+// ============================================================
+async function loadFinance() {
+  const el = document.getElementById("financeTableWrapper");
+  el.innerHTML = `<div class="state-loading"><div class="spinner"></div>Calculating deductions…</div>`;
+
+  try {
+    const res = await api({ action: "getFinance", flagship: SESSION.flagship, username: SESSION.username });
+    if (!res.ok) throw new Error(res.error);
+
+    FINANCE_DATA = res;
+    renderFinanceReport(res);
+  } catch(e) {
+    el.innerHTML = `<div class="state-empty"><div class="state-icon">❌</div>${e.message}</div>`;
+  }
+}
+
+function renderFinanceReport(data) {
+  const { report, summary } = data;
+  const el = document.getElementById("financeTableWrapper");
+
+  // KPIs
+  document.getElementById("kpi-moneyDed").textContent = `$${Math.abs(summary.totalMoneyDed).toFixed(2)}`;
+  document.getElementById("kpi-mpDed").textContent    = `$${Math.abs(summary.totalMissingPunchDed).toFixed(2)}`;
+  document.getElementById("kpi-total").textContent    = `$${Math.abs(summary.totalFinalDed).toFixed(2)}`;
+  document.getElementById("kpi-mp").textContent       = summary.totalMissingPunch;
+
+  if (!report || !report.length) {
+    el.innerHTML = `<div class="state-empty"><div class="state-icon">💰</div>No finance data. Upload data first.</div>`;
+    return;
+  }
+
+  // Finance table
+  let html = `<table class="finance-table">
+    <thead><tr>
+      <th>Date</th><th>Emp Count</th><th>Overlap</th>
+      <th>Deficit / Surplus</th><th>Missing Punch</th>
+      <th>Money Ded ($)</th><th>MP Ded ($)</th><th>Final Ded ($)</th>
+    </tr></thead><tbody>`;
+
+  let totMoney = 0, totMP = 0, totFinal = 0;
+
+  report.forEach(r => {
+    const defClass = r.deficit < 0 ? "deduction" : r.deficit > 0 ? "surplus" : "zero";
+    const moneyClass = r.moneyDed < 0 ? "deduction" : "zero";
+    const mpClass    = r.missingPunchDed < 0 ? "deduction" : "zero";
+    const finClass   = r.finalDed < 0 ? "deduction" : "zero";
+    totMoney += r.moneyDed; totMP += r.missingPunchDed; totFinal += r.finalDed;
+
+    html += `<tr>
+      <td>${r.date}</td>
+      <td>${r.empCount}</td>
+      <td>${r.overlapCount}</td>
+      <td class="${defClass}">${r.deficit >= 0 ? '+' : ''}${r.deficit}</td>
+      <td>${r.missingPunch}</td>
+      <td class="${moneyClass}">${r.moneyDed < 0 ? r.moneyDed.toFixed(2) : '—'}</td>
+      <td class="${mpClass}">${r.missingPunchDed < 0 ? r.missingPunchDed.toFixed(2) : '—'}</td>
+      <td class="${finClass}">${r.finalDed < 0 ? r.finalDed.toFixed(2) : '—'}</td>
+    </tr>`;
+  });
+
+  html += `</tbody><tfoot><tr>
+    <td colspan="5" style="text-align:right;">TOTAL</td>
+    <td class="${totMoney<0?'deduction':'zero'}">${totMoney<0?totMoney.toFixed(2):'—'}</td>
+    <td class="${totMP<0?'deduction':'zero'}">${totMP<0?totMP.toFixed(2):'—'}</td>
+    <td class="${totFinal<0?'deduction':'zero'}">${totFinal<0?totFinal.toFixed(2):'—'}</td>
+  </tr></tfoot></table>`;
+
+  el.innerHTML = html;
+
+  // Missing punch breakdown by employee
+  renderMissingBreakdown(report);
+}
+
+function renderMissingBreakdown(report) {
+  // Aggregate missing punches from finance report — we need employee-level data
+  // This calls a separate approach: group from attendance data if available
+  const el = document.getElementById("missingBreakdown");
+  if (!ATTENDANCE_DATA || !ATTENDANCE_DATA.employees) { el.innerHTML = '<div style="color:var(--grey1);font-size:13px;">Load attendance tab to see employee breakdown.</div>'; return; }
+
+  const breakdown = {};
+  ATTENDANCE_DATA.employees.forEach(emp => {
+    let count = 0;
+    Object.values(emp.days).forEach(d => { if (d.status === "Missing Punch") count++; });
+    if (count > 0) breakdown[emp.id] = { id: emp.id, name: emp.name, count };
+  });
+
+  const sorted = Object.values(breakdown).sort((a,b) => b.count - a.count);
+  if (!sorted.length) { el.innerHTML = '<div style="color:var(--grey1);font-size:13px;">✅ No missing punches recorded.</div>'; return; }
+
+  el.innerHTML = sorted.map(e => `
+    <div class="breakdown-card">
+      <div>
+        <div class="breakdown-name">${e.name}</div>
+        <div class="breakdown-id">${e.id}</div>
+      </div>
+      <div class="breakdown-count">${e.count} MP</div>
+    </div>`).join("");
+}
+
+function exportFinance() {
+  if (!FINANCE_DATA) { toast("Load finance data first", "error"); return; }
+  const { report, summary } = FINANCE_DATA;
+  let csv = "Date,Emp Count,Overlap,Deficit,Missing Punch,Money Ded,MP Ded,Final Ded\n";
+  report.forEach(r => {
+    csv += `${r.date},${r.empCount},${r.overlapCount},${r.deficit},${r.missingPunch},${r.moneyDed},${r.missingPunchDed},${r.finalDed}\n`;
+  });
+  csv += `TOTAL,,,,${summary.totalMissingPunch},${summary.totalMoneyDed},${summary.totalMissingPunchDed},${summary.totalFinalDed}\n`;
+  downloadCSV(csv, `Finance_${SESSION.flagship}_${today()}.csv`);
+}
+
+// ============================================================
+// CONFIG
+// ============================================================
+async function loadConfig() {
+  if (!SESSION) return;
+  try {
+    const res = await api({ action: "getConfig", flagship: SESSION.flagship });
+    if (res.ok) {
+      const c = res.config;
+      document.getElementById("cfg-target").value   = c.target_headcount || 46;
+      document.getElementById("cfg-penalty").value  = c.penalty_per_head  || 23;
+      document.getElementById("cfg-supCount").value = c.supervisor_count  || 4;
+      document.getElementById("cfg-supHours").value = c.supervisor_hours  || 9;
+      document.getElementById("cfg-overlap").value  = c.overlap_threshold || 8;
+    }
+  } catch(e) { /* silent */ }
+}
+
+async function saveConfig() {
+  const config = {
+    target_headcount: document.getElementById("cfg-target").value,
+    penalty_per_head:  document.getElementById("cfg-penalty").value,
+    supervisor_count:  document.getElementById("cfg-supCount").value,
+    supervisor_hours:  document.getElementById("cfg-supHours").value,
+    overlap_threshold: document.getElementById("cfg-overlap").value
+  };
+  try {
+    const res = await api({ action: "saveConfig", flagship: SESSION.flagship, username: SESSION.username, config });
+    if (res.ok) toast("Configuration saved", "success");
+    else toast("Save failed: " + res.error, "error");
+  } catch(e) { toast("Network error", "error"); }
+}
+
+async function confirmClearMonth() {
+  const flagship = SESSION.flagship;
+  const answer = prompt(`⚠️ TYPE "${flagship}" to confirm clearing all month data:`);
+  if (answer !== flagship) { toast("Cancelled — no data was deleted", "info"); return; }
+
+  try {
+    const res = await api({ action: "clearMonth", flagship, username: SESSION.username });
+    if (res.ok) {
+      ATTENDANCE_DATA = null; FINANCE_DATA = null;
+      toast("Month data cleared", "success");
+    } else toast("Clear failed: " + res.error, "error");
+  } catch(e) { toast("Network error", "error"); }
+}
+
+// ============================================================
+// CLIENT-SIDE PUNCH NORMALIZER (mirrors GAS logic)
+// Used for preview only — server does the authoritative calc
+// ============================================================
+function normalizePunch(raw) {
+  if (!raw || raw.trim() === "") return { status: "OFF", minutes: 0 };
+
+  const lines   = raw.split(/[\n\r]+/).map(l => l.trim()).filter(l => l !== "");
+  const valid   = [];
+  const seen    = {};
+  const skipLast = lines.length === 3;
+
+  lines.forEach((t, idx) => {
+    if (skipLast && idx === lines.length - 1) return;
+    if (!/^\d{2}:\d{2}$/.test(t)) return;
+    const [h, m] = t.split(":").map(Number);
+    if (h < 0 || h >= 24 || m < 0 || m > 59) return;
+    if (t === "00:00") return;
+    if (!seen[t]) { seen[t] = true; valid.push({ t, min: h * 60 + m }); }
+  });
+
+  const allZero = lines.every(l => l === "00:00" || !/^\d{2}:\d{2}$/.test(l));
+  if (!valid.length) return { status: allZero ? "OFF" : "Missing Punch", minutes: 0 };
+
+  const firstRaw = lines.find(l => /^\d{2}:\d{2}$/.test(l));
+  if (firstRaw === "00:00" && valid.length >= 1) return { status: "Missing Punch", minutes: 0 };
+
+  if (valid.length === 1) return { status: "Missing Punch", minutes: 0 };
+
+  let day = [...valid];
+  if (valid.length >= 3 && (valid[2].min - valid[1].min) >= 240) day = valid.slice(0, 2);
+
+  let fi = 0;
+  if (day.length >= 3 && (day[1].min - day[0].min) > 60) fi = 1;
+
+  let first = day[fi].min;
+  let last  = day[day.length - 1].min;
+  if (last < first) last += 1440;
+  const total = last - first;
+  if (total <= 0) return { status: "Missing Punch", minutes: 0 };
+  return { status: "OK", minutes: total };
+}
+
+// ============================================================
+// API HELPER
+// ============================================================
+async function api(payload) {
+  const res = await fetch(GAS_URL, {
+    method: "POST",
+    body: JSON.stringify(payload),
+    headers: { "Content-Type": "text/plain" } // avoid CORS preflight
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
+}
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function toast(msg, type = "info") {
+  const el = document.createElement("div");
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById("toast-container").appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+function today() {
+  return new Date().toISOString().slice(0, 10).replace(/-/g, "");
+}
+
+function downloadCSV(csv, filename) {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement("a"), { href: url, download: filename });
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
