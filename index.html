@@ -598,7 +598,7 @@ body {
 // ============================================================
 // CONFIG — UPDATE THIS BEFORE DEPLOYING
 // ============================================================
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxjRmc59YkhlHA_3qRumCbLq4zEc0WM3GyE9z9UEyD2Kcz8hbm5EmNFBStIT3snli82Zw/exec"; // ← paste your Apps Script web app URL
+const GAS_URL = "YOUR_GAS_DEPLOYMENT_URL_HERE"; // ← paste your Apps Script web app URL
 
 // ============================================================
 // STATE
@@ -877,7 +877,8 @@ function renderAttendanceGrid(data) {
     return;
   }
 
-  const days  = data.days;
+  // Re-sort days defensively on client side (GAS may return in insertion order)
+  const days  = [...(data.days || [])].sort((a, b) => dateToSortable(a).localeCompare(dateToSortable(b)));
   const emps  = data.employees;
   meta.textContent = `${emps.length} employees · ${days.length} days`;
 
@@ -1154,6 +1155,14 @@ function toast(msg, type = "info") {
 
 function today() {
   return new Date().toISOString().slice(0, 10).replace(/-/g, "");
+}
+
+function dateToSortable(d) {
+  if (!d) return "0000";
+  const s = String(d).trim();
+  const parts = s.split("/");
+  if (parts.length >= 2) return parts[1].padStart(2,"0") + parts[0].padStart(2,"0");
+  return "0000";
 }
 
 function downloadCSV(csv, filename) {
