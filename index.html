@@ -524,7 +524,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
       <div class="card">
         <div class="section-header" style="margin-bottom:14px">
           <div class="card-title" style="margin:0">📅 Headcount by Date Range</div>
-          <button class="btn-add-range" onclick="addRange()">+ Add Range</button>
+          <div class="flex" style="gap:8px">
+            <button class="btn-add-range" onclick="addRange()">+ Add Range</button>
+            <button class="btn-outline btn-sm" style="border-color:var(--red);color:var(--red)" onclick="resetRanges()">🗑 Reset All</button>
+          </div>
         </div>
         <p style="font-size:13px;color:var(--text2);margin-bottom:16px">
           Define how many employees are required per day for different date ranges.
@@ -1129,7 +1132,13 @@ async function loadRanges() {
   if (!SESSION) return;
   try {
     const res = await api({ action:"getRanges", flagship:SESSION.flagship });
-    if (res.ok) { RANGES=[...res.ranges]; renderRanges(); }
+    if (res.ok) {
+      RANGES = [...res.ranges];
+      if (res.wiped > 0) {
+        toast(`⚠ ${res.wiped} corrupt range row(s) were auto-removed. Please re-enter your date ranges and save.`, "error");
+      }
+      renderRanges();
+    }
   } catch(e){}
 }
 
@@ -1151,6 +1160,20 @@ function addRange() {
 }
 
 function delRange(i) { RANGES.splice(i,1); renderRanges(); }
+
+async function resetRanges() {
+  if (!confirm("This will permanently delete ALL headcount ranges for this flagship from the sheet. Are you sure?")) return;
+  try {
+    const res = await api({ action:"clearRanges", flagship:SESSION.flagship, username:SESSION.username });
+    if (res.ok) {
+      RANGES = [];
+      renderRanges();
+      toast(`Ranges cleared (${res.wiped} rows removed). Enter new ranges and save.`, "info");
+    } else {
+      toast("Error: " + res.error, "error");
+    }
+  } catch(e) { toast("Network error: " + e.message, "error"); }
+}
 
 // Normalize any date string to DD/MM/YYYY (zero-padded) before saving
 function normDateStr(s) {
