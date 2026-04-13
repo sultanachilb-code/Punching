@@ -430,10 +430,10 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
       </div>
       <div class="upload-zone" id="uploadZone" onclick="document.getElementById('fileInput').click()"
            ondragover="handleDragOver(event)" ondragleave="handleDragLeave(event)" ondrop="handleDrop(event)">
-        <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFileSelect(event)">
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.pdf" onchange="handleFileSelect(event)">
         <div class="upload-icon">📂</div>
         <div class="upload-title">Drop BPM Excel file here</div>
-        <div class="upload-sub">or click to browse — .xlsx / .xls only</div>
+        <div class="upload-sub">or click to browse — supports <strong>.pdf</strong> (direct from BPM) or .xlsx / .xls (ilovePDF converted)</div>
       </div>
       <div class="upload-status" id="uploadStatus"></div>
       <div id="previewSection" style="display:none">
@@ -607,6 +607,14 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 
 <!-- ============================================================ JS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+// Configure PDF.js worker
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+</script>
 <script>
 // ============================================================
 // CONFIG — UPDATE BEFORE DEPLOYING
@@ -689,26 +697,170 @@ function handleFileSelect(e) { if (e.target.files[0]) parseFile(e.target.files[0
 function parseFile(file) {
   showStatus("info", `📂 Parsing: ${file.name} …`);
   document.getElementById("previewSection").style.display = "none";
+
+  const isPDF = file.name.toLowerCase().endsWith(".pdf");
+  if (isPDF) {
+    parsePDF(file);
+  } else {
+    parseExcel(file);
+  }
+}
+
+function parseExcel(file) {
   const reader = new FileReader();
   reader.onload = ev => {
     try {
-      // KEY FIX: raw:true preserves \n in multiline wrap cells.
-      // We access cells directly (not sheet_to_json) so \n is never stripped.
       const wb = XLSX.read(ev.target.result, { type:"array", raw:true });
       const ws = wb.Sheets[wb.SheetNames[0]];
       const parsed = parseBPMSheet(ws);
       if (!parsed || !parsed.employees.length) {
-        showStatus("error", "❌ No employee data found. Ensure this is a BPM ilovePDF-converted Excel."); return;
+        showStatus("error", "❌ No employee data found. Ensure this is a BPM Excel file."); return;
       }
-      PARSED_DATA = parsed;
-      const totalRecs = parsed.employees.reduce((s,e) => s+Object.keys(e.days).length, 0);
-      showStatus("success",
-        `✅ Parsed successfully\n👥 Employees: ${parsed.employees.length}\n📅 Date range: ${parsed.dates[0]} → ${parsed.dates[parsed.dates.length-1]}\n📊 Total records: ${totalRecs}`
-      );
-      renderPreview(parsed);
-    } catch(err) { showStatus("error", "❌ Parse error: "+err.message); console.error(err); }
+      finishParse(parsed);
+    } catch(err) { showStatus("error", "❌ Excel parse error: "+err.message); console.error(err); }
   };
   reader.readAsArrayBuffer(file);
+}
+
+async function parsePDF(file) {
+  try {
+    if (typeof pdfjsLib === "undefined") {
+      showStatus("error", "❌ PDF.js not loaded. Please refresh the page."); return;
+    }
+    showStatus("info", "📄 Reading PDF directly from BPM — no ilovePDF needed…");
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    showStatus("info", `📄 PDF loaded — ${pdf.numPages} pages. Extracting attendance data…`);
+
+    const employees  = {};   // id → { id, name, days:{} }
+    const allDatesSet = {};  // date → true
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page    = await pdf.getPage(pageNum);
+      const content = await page.getTextContent();
+
+      // Build word list: { text, x, y, w }
+      const words = [];
+      content.items.forEach(item => {
+        const t = item.str.trim();
+        if (!t) return;
+        const tx = item.transform[4];  // x position
+        // PDF y is bottom-up; we negate for top-down sorting
+        const ty = -item.transform[5]; // y position (negated = top-down)
+        const tw = item.width;
+        words.push({ text:t, x:tx, y:ty, x1:tx+tw });
+      });
+
+      // Sort top-down then left-right
+      words.sort((a,b) => a.y !== b.y ? a.y - b.y : a.x - b.x);
+
+      // Find date header row — DD/MM pattern
+      const dateRe = /^\d{2}\/\d{2}$/;
+      const dateWords = words.filter(w => dateRe.test(w.text));
+      if (!dateWords.length) continue;
+
+      // Build column map: x_center → date
+      const colMap = {};
+      dateWords.forEach(w => {
+        const xc = w.x + w.w / 2;
+        colMap[xc] = w.text;
+        allDatesSet[w.text] = true;
+      });
+      const colXs = Object.keys(colMap).map(Number).sort((a,b) => a-b);
+      const headerY = dateWords[0].y;
+
+      // Find employee ID words (5-digit numbers below header)
+      const empRe = /^\d{5}$/;
+      const empWords = words.filter(w => empRe.test(w.text) && w.y > headerY);
+
+      empWords.forEach(empW => {
+        const empId = empW.text;
+        const empY  = empW.y;
+
+        // Name: same row, right of ID, not a time
+        const timeRe  = /^\d{2}:\d{2}$/;
+        const nameWds = words.filter(w =>
+          Math.abs(w.y - empY) < 5 && w.x > empW.x1 &&
+          !timeRe.test(w.text) && !dateRe.test(w.text) && !empRe.test(w.text)
+        );
+        let empName = nameWds.sort((a,b) => a.x - b.x).map(w => w.text).join(" ");
+        empName = empName.replace(/\s+\d+[:\.]\d+.*$/, "").trim();
+
+        // Time block: 3 rows below employee, containing HH:MM tokens
+        const blockWords = words.filter(w =>
+          w.y >= empY - 2 && w.y <= empY + 65 && timeRe.test(w.text)
+        );
+
+        // Group by y-row (snap to 4pt grid)
+        const rowsMap = {};
+        blockWords.forEach(w => {
+          const rk = Math.round(w.y / 4) * 4;
+          if (!rowsMap[rk]) rowsMap[rk] = [];
+          rowsMap[rk].push(w);
+        });
+        const rowKeys = Object.keys(rowsMap).map(Number).sort((a,b) => a-b);
+
+        // Build day → punches
+        const dayData = {};
+        rowKeys.slice(0, 3).forEach((rk, rowIdx) => {
+          rowsMap[rk].forEach(w => {
+            const wx = w.x + (w.w||6) / 2;
+            // Find nearest date column
+            let nearestX = colXs[0];
+            let minDist  = Math.abs(colXs[0] - wx);
+            colXs.forEach(cx => {
+              const d = Math.abs(cx - wx);
+              if (d < minDist) { minDist = d; nearestX = cx; }
+            });
+            if (minDist < 18) {
+              const date = colMap[nearestX];
+              if (!dayData[date]) dayData[date] = [];
+              dayData[date].push(w.text);
+            }
+          });
+        });
+
+        // Convert to punch strings
+        const days = {};
+        Object.entries(dayData).forEach(([date, punches]) => {
+          if (!punches.every(p => p === "00:00")) {
+            days[date] = punches.join("\n");
+          }
+        });
+
+        if (!employees[empId]) {
+          employees[empId] = { id:empId, name:empName, days:{} };
+        } else if (!employees[empId].name && empName) {
+          employees[empId].name = empName;
+        }
+        Object.assign(employees[empId].days, days);
+      });
+    }
+
+    const empList  = Object.values(employees);
+    const allDates = Object.keys(allDatesSet).sort((a,b) => {
+      const ai = parseInt(a.slice(3,5)+a.slice(0,2));
+      const bi = parseInt(b.slice(3,5)+b.slice(0,2));
+      return ai - bi;
+    });
+
+    finishParse({ employees:empList, dates:allDates });
+  } catch(err) {
+    showStatus("error", "❌ PDF parse error: "+err.message);
+    console.error(err);
+  }
+}
+
+function finishParse(parsed) {
+  if (!parsed || !parsed.employees.length) {
+    showStatus("error", "❌ No employee data found."); return;
+  }
+  PARSED_DATA = parsed;
+  const totalRecs = parsed.employees.reduce((s,e) => s+Object.keys(e.days).length, 0);
+  showStatus("success",
+    `✅ Parsed successfully\n👥 Employees: ${parsed.employees.length}\n📅 Date range: ${parsed.dates[0]} → ${parsed.dates[parsed.dates.length-1]}\n📊 Total records: ${totalRecs}`
+  );
+  renderPreview(parsed);
 }
 
 function parseBPMSheet(ws) {
