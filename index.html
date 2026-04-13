@@ -682,10 +682,11 @@ function parseFile(file) {
   const reader = new FileReader();
   reader.onload = ev => {
     try {
-      const wb   = XLSX.read(ev.target.result, { type:"array", cellText:true, raw:false });
-      const ws   = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(ws, { header:1, raw:false, defval:"" });
-      const parsed = parseBPMSheet(rows);
+      // KEY FIX: raw:true preserves \n in multiline wrap cells.
+      // We access cells directly (not sheet_to_json) so \n is never stripped.
+      const wb = XLSX.read(ev.target.result, { type:"array", raw:true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const parsed = parseBPMSheet(ws);
       if (!parsed || !parsed.employees.length) {
         showStatus("error", "❌ No employee data found. Ensure this is a BPM ilovePDF-converted Excel."); return;
       }
@@ -700,33 +701,62 @@ function parseFile(file) {
   reader.readAsArrayBuffer(file);
 }
 
-function parseBPMSheet(rows) {
-  // Find header row with Number / Name
-  let hRow = -1;
-  for (let i=0; i<Math.min(rows.length,10); i++) {
-    if (rows[i] && (rows[i][0]==="Number" || rows[i][1]==="Name")) { hRow=i; break; }
-  }
-  if (hRow===-1) throw new Error("Header row not found (Number/Name columns)");
+function parseBPMSheet(ws) {
+  // Get worksheet range
+  const ref  = ws["!ref"] ? XLSX.utils.decode_range(ws["!ref"]) : null;
+  if (!ref)  throw new Error("Empty worksheet");
+  const R    = ref.e.r; // last row index (0-based)
+  const C    = ref.e.c; // last col index (0-based)
 
-  const headers  = rows[hRow];
+  // Helper: get plain text from a cell, preserving \n from wrapped multiline cells
+  function cellText(r, c) {
+    const addr = XLSX.utils.encode_cell({r, c});
+    const cell = ws[addr];
+    if (!cell) return "";
+    // cell.v is the raw value; for text cells with \n it preserves line breaks
+    // cell.w is the formatted display (may lose \n)
+    // We prefer cell.v for string type, fall back to cell.w
+    if (cell.t === "s") return String(cell.v || "");  // string: use raw value
+    if (cell.w) return String(cell.w);                 // number/date: use formatted
+    return String(cell.v || "");
+  }
+
+  // Find header row: col 0 = "Number", col 1 = "Name"
+  let hRow = -1;
+  for (let r=0; r<=Math.min(R,9); r++) {
+    const a = cellText(r,0); const b = cellText(r,1);
+    if (a==="Number" || b==="Name") { hRow=r; break; }
+  }
+  if (hRow===-1) throw new Error("Header row not found (Number/Name)");
+
+  // Collect date columns (DD/MM format in header row)
   const dateCols = [];
-  for (let c=2; c<headers.length; c++) {
-    const h = String(headers[c]||"").trim();
-    if (/^\d{2}\/\d{2}$/.test(h))       dateCols.push({c, date:h});
+  for (let c=2; c<=C; c++) {
+    const h = cellText(hRow, c).trim();
+    if (/^\d{2}\/\d{2}$/.test(h))            dateCols.push({c, date:h});
     else if (/^\d{2}\/\d{2}\/\d{4}$/.test(h)) dateCols.push({c, date:h.slice(0,5)});
   }
-  if (!dateCols.length) throw new Error("No date columns (DD/MM format) found");
+  if (!dateCols.length) throw new Error("No date columns (DD/MM) found in header");
 
+  // Collect employees: rows where col 0 is numeric ID and col 1 is a name
   const employees = [];
-  for (let r=hRow+1; r<rows.length; r++) {
-    const row   = rows[r];
-    const empId = String(row[0]||"").trim();
-    const name  = String(row[1]||"").trim();
+  for (let r=hRow+1; r<=R; r++) {
+    const empId = cellText(r,0).trim();
+    const name  = cellText(r,1).trim();
     if (!empId || isNaN(Number(empId)) || !name) continue;
+
     const days = {};
     dateCols.forEach(({c, date}) => {
-      const raw = String(row[c]||"").trim();
-      if (raw) days[date] = raw;
+      // Use raw cell value — this is where \n is preserved for multiline punch cells
+      const addr = XLSX.utils.encode_cell({r, c});
+      const cell = ws[addr];
+      if (!cell) return;
+      // For string cells with line breaks, cell.v contains the \n-separated string
+      let raw = "";
+      if (cell.t === "s") raw = String(cell.v || "").trim();
+      else if (cell.w)    raw = String(cell.w).trim();
+      else                raw = String(cell.v || "").trim();
+      if (raw && raw !== "0" && raw !== "") days[date] = raw;
     });
     employees.push({ id:empId, name, days });
   }
@@ -1127,8 +1157,11 @@ async function confirmClearMonth() {
 // ============================================================
 function normalizePunch(raw) {
   if (!raw||raw.trim()==="") return {status:"OFF",minutes:0};
-  const lines=raw.split(/[\n\r]+/).map(l=>l.trim()).filter(Boolean);
-  const skipLast=lines.length===3;
+  // Split on newlines OR spaces — handles both multiline wrap and space-joined
+  const lines=raw.trim().split(/[\n\r\s]+/).map(l=>l.trim()).filter(Boolean);
+  // Skip last line only when exactly 3 HH:MM-like tokens (IN / OUT / TOTAL pattern)
+  const allTimeLike = lines.every(l=>/^\d{1,2}:\d{2}$/.test(l));
+  const skipLast = lines.length===3 && allTimeLike;
   const valid=[]; const seen={};
   lines.forEach((t,idx)=>{
     if(skipLast&&idx===lines.length-1)return;
