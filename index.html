@@ -6,7 +6,7 @@
 <title>ABC Soft Services — Punching System</title>
 <style>
 /* ============================================================
-   ABC Punching System v2.1.0
+   ABC Punching System v2.2.0
    Theme: ABC Mall — Crisp White / Deep Navy / Gold Accent
    Font: Barlow (corporate, readable, clean)
    ============================================================ */
@@ -386,7 +386,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
     <div class="login-right">
       <h2>Punching System</h2>
       <p>Import BPM punching reports, review attendance, manage exceptional approvals, and generate automated deduction reports — all in one place.</p>
-      <span class="login-right-badge">v2.1.0</span>
+      <span class="login-right-badge">v2.2.0</span>
     </div>
   </div>
 </div>
@@ -396,7 +396,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">ABC Punching System</div>
-      <div class="topbar-ver">v2.1.0</div>
+      <div class="topbar-ver">v2.2.0</div>
       <div class="topbar-flagship" id="topFlagship">—</div>
     </div>
     <div class="topbar-right">
@@ -619,7 +619,7 @@ if (typeof pdfjsLib !== 'undefined') {
 // ============================================================
 // CONFIG — UPDATE BEFORE DEPLOYING
 // ============================================================
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxjRmc59YkhlHA_3qRumCbLq4zEc0WM3GyE9z9UEyD2Kcz8hbm5EmNFBStIT3snli82Zw/exec";
+const GAS_URL = "YOUR_GAS_DEPLOYMENT_URL_HERE";
 
 // ============================================================
 // STATE
@@ -724,142 +724,34 @@ function parseExcel(file) {
 
 async function parsePDF(file) {
   try {
-    if (typeof pdfjsLib === "undefined") {
-      showStatus("error", "❌ PDF.js not loaded. Please refresh the page."); return;
-    }
-    showStatus("info", "📄 Reading PDF directly from BPM — no ilovePDF needed…");
+    showStatus("info", "📄 Reading PDF — uploading to server for parsing…");
+    
+    // Convert PDF to base64
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    showStatus("info", `📄 PDF loaded — ${pdf.numPages} pages. Extracting attendance data…`);
-
-    const employees   = {};
-    const allDatesOrdered = [];
-    const allDatesSet = {};
-
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page     = await pdf.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 1 });
-      const pageH    = viewport.height;
-      const content  = await page.getTextContent();
-
-      const dateRe = /^\d{2}\/\d{2}$/;
-      const timeRe = /^\d{1,2}:\d{2}$/;  // includes H:MM and HH:MM
-      const empRe  = /^\d{5}$/;
-
-      // Build word list: x = left edge, y = top-down (pageH - baseline)
-      // Add a small fixed offset (+6pt) to convert baseline→top to match pdfplumber
-      const BASELINE_OFFSET = 6;
-      const words = [];
-      content.items.forEach(item => {
-        const t = item.str.trim();
-        if (!t) return;
-        words.push({
-          text: t,
-          x:    item.transform[4],
-          y:    pageH - item.transform[5] - BASELINE_OFFSET
-        });
-      });
-
-      // Sort top-down then left-right
-      words.sort((a,b) => Math.abs(a.y - b.y) < 1 ? a.x - b.x : a.y - b.y);
-
-      // Find date columns — ALL DD/MM words on page
-      const dateWords = words.filter(w => dateRe.test(w.text));
-      if (!dateWords.length) continue;
-
-      // Build colMap: x0 → date (use first occurrence of each date per page)
-      const colMap = {};
-      dateWords.forEach(w => {
-        if (!colMap[w.x]) {
-          colMap[w.x] = w.text;
-          if (!allDatesSet[w.text]) {
-            allDatesSet[w.text] = true;
-            allDatesOrdered.push(w.text);
-          }
-        }
-      });
-      const colXs = Object.keys(colMap).map(Number).sort((a,b) => a - b);
-      const gaps  = colXs.slice(1).map((cx,i) => cx - colXs[i]);
-      const colWidth = gaps.length
-        ? gaps.slice().sort((a,b)=>a-b)[Math.floor(gaps.length/2)]
-        : 22;
-      const headerY = Math.min(...dateWords.map(w => w.y));
-
-      // Max x of date columns — reject anything to the right (OT/PE/Total margin)
-      const maxColX = Math.max(...colXs) + colWidth;
-
-      // Employee IDs below the header
-      const empWords = words.filter(w => empRe.test(w.text) && w.y > headerY + 3);
-
-      empWords.forEach(empW => {
-        const empId = empW.text;
-        const empY  = empW.y;
-
-        // Employee name
-        const nameWds = words.filter(w =>
-          Math.abs(w.y - empY) < 5 && w.x > empW.x + 15 &&
-          !timeRe.test(w.text) && !dateRe.test(w.text) && !empRe.test(w.text)
-        );
-        let empName = nameWds.sort((a,b)=>a.x-b.x).map(w=>w.text).join(" ")
-          .replace(/\s+\d+[:\.]\d+.*$/, "").trim();
-
-        // Punch block: time words within 60pt below employee, LEFT of margin
-        const blockWords = words.filter(w =>
-          w.y >= empY - 3 && w.y <= empY + 60 &&
-          w.x < maxColX &&                    // ← reject right-margin OT/PE/Total
-          /^\d{2}:\d{2}$/.test(w.text)      // strict HH:MM only
-        );
-
-        // Group into rows using 6pt snap grid (robust to baseline offset variance)
-        const rowsMap = {};
-        blockWords.forEach(w => {
-          const rk = Math.round(w.y / 6) * 6;
-          (rowsMap[rk] = rowsMap[rk] || []).push(w);
-        });
-        const rowKeys = Object.keys(rowsMap).map(Number).sort((a,b) => a - b);
-
-        // Build dayData: date → [IN, OUT, TOTAL] values per row
-        const dayData = {};  // date → array of punches (up to 3)
-        rowKeys.slice(0, 3).forEach(rk => {
-          rowsMap[rk].forEach(w => {
-            let nearestX = colXs[0];
-            let minDist  = Math.abs(colXs[0] - w.x);
-            colXs.forEach(cx => {
-              const d = Math.abs(cx - w.x);
-              if (d < minDist) { minDist = d; nearestX = cx; }
-            });
-            if (minDist < colWidth) {
-              const date = colMap[nearestX];
-              (dayData[date] = dayData[date] || []).push(w.text);
-            }
-          });
-        });
-
-        // Convert to punch strings and compute minutes from the raw punches
-        // Send the full punch string to normalizePunch (same as Excel path)
-        const days = {};
-        Object.entries(dayData).forEach(([date, punches]) => {
-          if (!punches.every(p => p === "00:00")) {
-            days[date] = punches.join("\n");
-          }
-        });
-
-        if (!employees[empId]) {
-          employees[empId] = { id: empId, name: empName, days: {} };
-        } else if (!employees[empId].name && empName) {
-          employees[empId].name = empName;
-        }
-        Object.assign(employees[empId].days, days);
-      });
+    const bytes = new Uint8Array(arrayBuffer);
+    let binary = "";
+    const chunkSize = 8192;
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
     }
-
-    allDatesOrdered.sort((a,b) => {
-      const ai = parseInt(a.slice(3,5)) * 100 + parseInt(a.slice(0,2));
-      const bi = parseInt(b.slice(3,5)) * 100 + parseInt(b.slice(0,2));
-      return ai - bi;
+    const base64 = btoa(binary);
+    
+    showStatus("info", `📄 Sending PDF to server (${(bytes.length/1024).toFixed(0)}KB)…`);
+    
+    const res = await api({
+      action:    "parsePDF",
+      pdfBase64: base64,
+      filename:  file.name,
+      flagship:  SESSION ? SESSION.flagship : "VRD"
     });
-
-    finishParse({ employees: Object.values(employees), dates: allDatesOrdered });
+    
+    if (!res.ok) {
+      showStatus("error", "❌ Server PDF parse error: " + (res.error || "Unknown error"));
+      return;
+    }
+    
+    finishParse({ employees: res.employees, dates: res.dates });
+    
   } catch(err) {
     showStatus("error", "❌ PDF parse error: " + err.message);
     console.error(err);
