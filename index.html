@@ -619,7 +619,7 @@ if (typeof pdfjsLib !== 'undefined') {
 // ============================================================
 // CONFIG — UPDATE BEFORE DEPLOYING
 // ============================================================
-const GAS_URL = "https://script.google.com/macros/s/AKfycbxjRmc59YkhlHA_3qRumCbLq4zEc0WM3GyE9z9UEyD2Kcz8hbm5EmNFBStIT3snli82Zw/exec";
+const GAS_URL = "YOUR_GAS_DEPLOYMENT_URL_HERE";
 
 // ============================================================
 // STATE
@@ -724,34 +724,125 @@ function parseExcel(file) {
 
 async function parsePDF(file) {
   try {
-    showStatus("info", "📄 Reading PDF — uploading to server for parsing…");
-    
-    // Convert PDF to base64
+    if (typeof pdfjsLib === "undefined") {
+      showStatus("error", "❌ PDF.js not loaded. Please refresh the page."); return;
+    }
+    showStatus("info", "📄 Parsing PDF — extracting attendance data…");
     const arrayBuffer = await file.arrayBuffer();
-    const bytes = new Uint8Array(arrayBuffer);
-    let binary = "";
-    const chunkSize = 8192;
-    for (let i = 0; i < bytes.length; i += chunkSize) {
-      binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    showStatus("info", `📄 PDF loaded — ${pdf.numPages} pages. Processing…`);
+
+    const employees      = {};
+    const allDatesOrdered = [];
+    const allDatesSet     = {};
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page     = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 1 });
+      const pageH    = viewport.height;
+      const content  = await page.getTextContent();
+
+      const dateRe = /^\d{2}\/\d{2}$/;
+      const timeRe = /^\d{2}:\d{2}$/;
+      const empRe  = /^\d{5}$/;
+
+      // Build word list from PDF.js items
+      // y = top-down coordinate (pageH - baseline_y)
+      // No extra offset — we snap rows by 6pt to absorb baseline variance
+      const words = [];
+      content.items.forEach(item => {
+        const t = item.str.trim();
+        if (!t) return;
+        words.push({ text: t, x: item.transform[4], y: pageH - item.transform[5] });
+      });
+
+      // Sort top-down then left-right
+      words.sort((a,b) => Math.abs(a.y-b.y) < 1 ? a.x-b.x : a.y-b.y);
+
+      // Collect all DD/MM date words → build column map (x0 → date)
+      const dateWords = words.filter(w => dateRe.test(w.text));
+      if (!dateWords.length) continue;
+
+      const colMap = {};
+      dateWords.forEach(w => {
+        if (!colMap[w.x]) {
+          colMap[w.x] = w.text;
+          if (!allDatesSet[w.text]) {
+            allDatesSet[w.text] = true;
+            allDatesOrdered.push(w.text);
+          }
+        }
+      });
+      const colXs    = Object.keys(colMap).map(Number).sort((a,b)=>a-b);
+      const gaps     = colXs.slice(1).map((cx,i)=>cx-colXs[i]);
+      const colWidth = gaps.length ? gaps.slice().sort((a,b)=>a-b)[Math.floor(gaps.length/2)] : 22;
+      const headerY  = Math.min(...dateWords.map(w=>w.y));
+      const maxColX  = Math.max(...colXs) + colWidth; // reject right-margin totals
+
+      // Employee IDs below the header
+      const empWords = words.filter(w => empRe.test(w.text) && w.y > headerY + 3);
+
+      empWords.forEach(empW => {
+        const empId = empW.text;
+        const empY  = empW.y;
+
+        // Employee name: same y-row, right of ID
+        const nameWds = words.filter(w =>
+          Math.abs(w.y - empY) < 5 && w.x > empW.x + 15 &&
+          !timeRe.test(w.text) && !dateRe.test(w.text) && !empRe.test(w.text)
+        );
+        let empName = nameWds.sort((a,b)=>a.x-b.x).map(w=>w.text).join(" ")
+          .replace(/\s+\d+[:.]\d+.*$/, "").trim();
+
+        // Punch block: time words within 60pt, left of right margin
+        // Use >= empY - 3 to include IN punches on the same line as the employee ID
+        const blockWords = words.filter(w =>
+          w.y >= empY - 3 && w.y <= empY + 60 &&
+          w.x < maxColX &&
+          timeRe.test(w.text)
+        );
+
+        // Group into rows using 6pt snap grid (absorbs PDF.js baseline variance)
+        const rowsMap = {};
+        blockWords.forEach(w => {
+          const rk = Math.round(w.y / 6) * 6;
+          (rowsMap[rk] = rowsMap[rk] || []).push(w);
+        });
+        const rowKeys = Object.keys(rowsMap).map(Number).sort((a,b)=>a-b);
+
+        // Match each time to its date column by x0 proximity (nearest wins)
+        const dayData = {};
+        rowKeys.slice(0, 3).forEach(rk => {
+          rowsMap[rk].forEach(w => {
+            let nearestX = colXs[0], minDist = Math.abs(colXs[0]-w.x);
+            colXs.forEach(cx => { const d=Math.abs(cx-w.x); if(d<minDist){minDist=d;nearestX=cx;} });
+            if (minDist < colWidth) {
+              const date = colMap[nearestX];
+              (dayData[date] = dayData[date] || []).push(w.text);
+            }
+          });
+        });
+
+        // Build punch strings — skip all-zero days
+        const days = {};
+        Object.entries(dayData).forEach(([date, punches]) => {
+          if (!punches.every(p => p === "00:00")) days[date] = punches.join("\n");
+        });
+
+        if (!employees[empId]) employees[empId] = { id:empId, name:empName, days:{} };
+        else if (!employees[empId].name && empName) employees[empId].name = empName;
+        Object.assign(employees[empId].days, days);
+      });
     }
-    const base64 = btoa(binary);
-    
-    showStatus("info", `📄 Sending PDF to server (${(bytes.length/1024).toFixed(0)}KB)…`);
-    
-    const res = await api({
-      action:    "parsePDF",
-      pdfBase64: base64,
-      filename:  file.name,
-      flagship:  SESSION ? SESSION.flagship : "VRD"
+
+    // Sort dates chronologically (DD/MM format)
+    allDatesOrdered.sort((a,b) => {
+      const ai = parseInt(a.slice(3,5))*100 + parseInt(a.slice(0,2));
+      const bi = parseInt(b.slice(3,5))*100 + parseInt(b.slice(0,2));
+      return ai - bi;
     });
-    
-    if (!res.ok) {
-      showStatus("error", "❌ Server PDF parse error: " + (res.error || "Unknown error"));
-      return;
-    }
-    
-    finishParse({ employees: res.employees, dates: res.dates });
-    
+
+    finishParse({ employees: Object.values(employees), dates: allDatesOrdered });
   } catch(err) {
     showStatus("error", "❌ PDF parse error: " + err.message);
     console.error(err);
