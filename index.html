@@ -374,11 +374,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
       <p class="login-sub">Sign in to access your flagship attendance dashboard</p>
       <div class="form-group">
         <label>Username</label>
-        <input type="text" id="loginUser" placeholder="e.g. admin.vrd" autocomplete="username">
+        <input type="text" id="loginUser" placeholder="e.g. admin.vrd" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()">
       </div>
       <div class="form-group">
         <label>Password</label>
-        <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password">
+        <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
       </div>
       <button class="btn-primary" id="loginBtn" onclick="doLogin()">Sign In →</button>
       <div class="login-error" id="loginError"></div>
@@ -621,6 +621,30 @@ if (typeof pdfjsLib !== 'undefined') {
 // ============================================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxjRmc59YkhlHA_3qRumCbLq4zEc0WM3GyE9z9UEyD2Kcz8hbm5EmNFBStIT3snli82Zw/exec";
 
+// Ping GAS on load to verify connectivity — shows warning if unreachable
+(async function pingOnLoad() {
+  try {
+    const res = await fetch(GAS_URL, {
+      method:"POST", body:JSON.stringify({action:"ping"}),
+      headers:{"Content-Type":"text/plain"}
+    });
+    if (res.ok) {
+      const d = await res.json();
+      if (d.ver) {
+        const verEl = document.querySelector(".login-right-badge");
+        if (verEl) verEl.title = "GAS v" + d.ver + " connected";
+      }
+    }
+  } catch(e) {
+    // Show connectivity warning on login screen
+    const errEl = document.getElementById("loginError");
+    if (errEl) {
+      errEl.textContent = "⚠️ Cannot reach server — check internet connection or redeploy GAS.";
+      errEl.style.display = "block";
+    }
+  }
+})();
+
 // ============================================================
 // STATE
 // ============================================================
@@ -636,19 +660,27 @@ let EDIT_CTX      = null; // { empId, empName, dateKey, currentRecord }
 async function doLogin() {
   const u = document.getElementById("loginUser").value.trim();
   const p = document.getElementById("loginPass").value;
-  if (!u || !p) { showLoginErr("Enter username and password."); return; }
+  if (!u || !p) { showLoginErr("Please enter username and password."); return; }
   const btn = document.getElementById("loginBtn");
   btn.disabled = true; btn.textContent = "Signing in…";
+  showLoginErr(""); // clear previous error
   try {
     const res = await api({ action:"login", username:u, password:p });
     if (res.ok) { SESSION = res.user; showApp(); }
-    else showLoginErr(res.error || "Login failed.");
-  } catch(e) { showLoginErr("Connection error — check GAS_URL in code."); }
+    else showLoginErr(res.error || "Login failed. Check credentials.");
+  } catch(e) {
+    console.error("Login error:", e);
+    const msg = e.message.includes("Failed to fetch") || e.message.includes("NetworkError")
+      ? "Cannot reach server. Check your internet connection or the GAS URL."
+      : "Connection error: " + e.message;
+    showLoginErr(msg);
+  }
   btn.disabled = false; btn.textContent = "Sign In →";
 }
 
 function showLoginErr(msg) {
   const el = document.getElementById("loginError");
+  if (!msg) { el.style.display = "none"; el.textContent = ""; return; }
   el.textContent = msg; el.style.display = "block";
 }
 
