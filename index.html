@@ -6,7 +6,7 @@
 <title>ABC Soft Services — Punching System</title>
 <style>
 /* ============================================================
-   ABC Punching System v2.5.0
+   ABC Punching System v2.7.0
    Theme: ABC Mall — Crisp White / Deep Navy / Gold Accent
    Font: Barlow (corporate, readable, clean)
    ============================================================ */
@@ -386,7 +386,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
     <div class="login-right">
       <h2>Punching System</h2>
       <p>Import BPM punching reports, review attendance, manage exceptional approvals, and generate automated deduction reports — all in one place.</p>
-      <span class="login-right-badge">v2.5.0</span>
+      <span class="login-right-badge">v2.7.0</span>
     </div>
   </div>
 </div>
@@ -396,7 +396,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">ABC Punching System</div>
-      <div class="topbar-ver">v2.5.0</div>
+      <div class="topbar-ver">v2.7.0</div>
       <div class="topbar-flagship" id="topFlagship">—</div>
     </div>
     <div class="topbar-right">
@@ -732,39 +732,46 @@ async function parsePDF(file) {
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     showStatus("info", `📄 PDF loaded — ${pdf.numPages} pages. Processing…`);
 
-    // Reconstruct layout text from PDF.js item coordinates (like pdftotext -layout)
-    // CHAR_WIDTH converts point x-coordinate → character column position
+    // Reconstruct layout text from PDF.js items (like pdftotext -layout)
+    // CHAR_WIDTH: points per character for BPM report font
+    // SNAP: grid size for grouping items into visual rows
+    // PDF.js y = pageH - transform[5] (baseline from top of page)
+    // Name chars have slightly larger y than punch chars on same visual row due to font height
+    // snap=4 merges them into the same row bucket reliably
     const CHAR_WIDTH = 5.5;
+    const SNAP       = 4;
 
     const employees       = {};
     const allDatesOrdered = [];
     const allDatesSet     = {};
 
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page     = await pdf.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 1 });
-      const pageH    = viewport.height;
+      const page      = await pdf.getPage(pageNum);
+      const viewport  = page.getViewport({ scale: 1 });
+      const pageH     = viewport.height;
       const pgContent = await page.getTextContent();
 
-      // Build items: {text, x, y} where y is top-down
+      // Build items: x = left edge, y = top-down baseline position
       const items = [];
       pgContent.items.forEach(item => {
         const t = item.str.trim();
         if (!t) return;
+        // PDF.js transform[5] is baseline from bottom of page
+        // y = pageH - transform[5] gives baseline from top of page
         items.push({ text: t, x: item.transform[4], y: pageH - item.transform[5] });
       });
 
-      // Group items into visual rows (snap y to 2pt grid)
+      // Group items into visual rows using snap grid
       const rowsMap = {};
       items.forEach(item => {
-        const rk = Math.round(item.y / 2) * 2;
+        const rk = Math.round(item.y / SNAP) * SNAP;
         (rowsMap[rk] = rowsMap[rk] || []).push(item);
       });
 
-      // Build layout lines: place each item at charPos = floor(x / CHAR_WIDTH)
+      // Build layout lines: each item placed at its character column position
       const lines = [];
-      Object.keys(rowsMap).map(Number).sort((a,b)=>a-b).forEach(rk => {
-        const rowItems = rowsMap[rk].slice().sort((a,b)=>a.x-b.x);
+      Object.keys(rowsMap).map(Number).sort((a,b) => a-b).forEach(rk => {
+        const rowItems = rowsMap[rk].slice().sort((a,b) => a.x - b.x);
         let line = "";
         rowItems.forEach(item => {
           const charPos = Math.floor(item.x / CHAR_WIDTH);
@@ -774,17 +781,33 @@ async function parsePDF(file) {
         lines.push(line.trimEnd());
       });
 
-      // Parse lines: find header, then detect employee lines by 5-digit ID
-      const dateRe  = /\d{2}\/\d{2}/g;
-      const empRe   = /^\s{1,10}(\d{5})\s+([A-Za-z][A-Za-z\s]+?)\s+\d{2}:\d{2}/;
-      const timeRe  = /\d{2}:\d{2}/g;
+      // Parse layout lines
+      const dateRe = /\d{2}\/\d{2}/g;
+      const empRe  = /^\s{1,10}(\d{5})\s+([A-Za-z][A-Za-z\s]+)/;
+      const timeRe = /\d{2}:\d{2}/g;
 
-      let datePosMap = [];  // [{pos, date}]
+      // Extract HH:MM values from a line aligned to date column positions
+      const extractTimes = (ln, dpm) => {
+        const result = {}, times = [];
+        let tm; timeRe.lastIndex = 0;
+        while ((tm = timeRe.exec(ln)) !== null) times.push({ pos: tm.index, val: tm[0] });
+        dpm.forEach(dp => {
+          let best = null, bestDist = 999;
+          times.forEach(t => {
+            const d = Math.abs(t.pos - dp.pos);
+            if (d < bestDist && d < 5) { bestDist = d; best = t.val; }
+          });
+          if (best) result[dp.date] = best;
+        });
+        return result;
+      };
+
+      let datePosMap = [];
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
 
-        // Detect header: "Number" + "Name" + DD/MM dates
+        // Detect header row: contains "Number", "Name", and DD/MM dates
         if (/Number\s+Name/.test(line) && /\d{2}\/\d{2}/.test(line)) {
           datePosMap = [];
           let m; dateRe.lastIndex = 0;
@@ -799,47 +822,29 @@ async function parsePDF(file) {
 
         if (!datePosMap.length) continue;
 
-        // Detect employee line: 5-digit ID + name + first time value
+        // Detect employee line: 5-digit ID followed by alphabetic name
         empRe.lastIndex = 0;
         const empM = empRe.exec(line);
         if (!empM) continue;
 
         const empId   = empM[1];
         const empName = empM[2].trim();
+        if (!empName) continue;  // guard against false positives
 
-        // Helper: extract times from a line by character position proximity
-        const extractTimes = (ln) => {
-          const result = {}, times = [];
-          let tm; timeRe.lastIndex = 0;
-          while ((tm = timeRe.exec(ln)) !== null) times.push({ pos: tm.index, val: tm[0] });
-          datePosMap.forEach(dp => {
-            let best = null, bestDist = 999;
-            times.forEach(t => {
-              const d = Math.abs(t.pos - dp.pos);
-              if (d < bestDist && d < 5) { bestDist = d; best = t.val; }
-            });
-            if (best) result[dp.date] = best;
-          });
-          return result;
-        };
-
-        // Collect up to 3 data rows for this employee:
-        // Row 1 = current line (IN punches)
-        // Row 2 = next non-employee line (OUT punches)
-        // Row 3 = next-next non-employee line (TOTAL/duration)
-        // Stop at the next employee line or page break
-        const dataRows = [extractTimes(line)];
+        // Collect up to 3 data rows (IN, OUT, TOTAL)
+        // Stop at the next employee line or header
+        const dataRows = [extractTimes(line, datePosMap)];
         let lookahead = i + 1;
         while (lookahead < lines.length && dataRows.length < 3) {
           const nextLine = lines[lookahead];
           empRe.lastIndex = 0;
-          // Stop collecting if next line is another employee or a new header
-          if (empRe.exec(nextLine) || /Number\s+Name/.test(nextLine)) break;
-          dataRows.push(extractTimes(nextLine));
+          if (empRe.exec(nextLine) && /\d{5}/.test(nextLine)) break;
+          if (/Number\s+Name/.test(nextLine)) break;
+          dataRows.push(extractTimes(nextLine, datePosMap));
           lookahead++;
         }
 
-        // Build days: merge punches from all 3 data rows
+        // Build days from the collected punch rows
         const days = {};
         datePosMap.forEach(dp => {
           const punches = dataRows.map(r => r[dp.date]).filter(Boolean);
@@ -851,19 +856,16 @@ async function parsePDF(file) {
         else if (!employees[empId].name && empName) employees[empId].name = empName;
         Object.assign(employees[empId].days, days);
 
-        // Skip the data rows we already consumed so we don't re-process them
-        // But only skip lines that are NOT employee lines (i.e. the OUT and TOTAL rows)
-        // Use lookahead - 1 because the for loop will i++ at end
-        // We skip exactly the rows we peeked (excluding the employee line itself)
+        // Advance past the data rows we already consumed
         i = lookahead - 1;
       }
     }
 
-    // Sort dates chronologically (DD/MM format: sort by month then day)
+    // Sort dates chronologically (DD/MM → sort by month then day)
     allDatesOrdered.sort((a,b) => {
-      const ai = parseInt(a.slice(3,5))*100 + parseInt(a.slice(0,2));
-      const bi = parseInt(b.slice(3,5))*100 + parseInt(b.slice(0,2));
-      return ai-bi;
+      const ai = parseInt(a.slice(3,5)) * 100 + parseInt(a.slice(0,2));
+      const bi = parseInt(b.slice(3,5)) * 100 + parseInt(b.slice(0,2));
+      return ai - bi;
     });
 
     const empList = Object.values(employees);
