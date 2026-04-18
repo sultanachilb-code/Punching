@@ -6,7 +6,7 @@
 <title>ABC Soft Services — Punching System</title>
 <style>
 /* ============================================================
-   ABC Punching System v2.7.0
+   ABC Punching System v2.8.0
    Theme: ABC Mall — Crisp White / Deep Navy / Gold Accent
    Font: Barlow (corporate, readable, clean)
    ============================================================ */
@@ -386,7 +386,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
     <div class="login-right">
       <h2>Punching System</h2>
       <p>Import BPM punching reports, review attendance, manage exceptional approvals, and generate automated deduction reports — all in one place.</p>
-      <span class="login-right-badge">v2.7.0</span>
+      <span class="login-right-badge">v2.8.0</span>
     </div>
   </div>
 </div>
@@ -396,7 +396,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">ABC Punching System</div>
-      <div class="topbar-ver">v2.7.0</div>
+      <div class="topbar-ver">v2.8.0</div>
       <div class="topbar-flagship" id="topFlagship">—</div>
     </div>
     <div class="topbar-right">
@@ -1202,7 +1202,7 @@ async function loadFinance() {
 }
 
 function renderFinance(data) {
-  const {report, summary} = data;
+  const {report, summary, lastDayIsLive, lastDay} = data;
   document.getElementById("kpi-moneyDed").textContent = `$${Math.abs(summary.totalMoneyDed||0).toFixed(2)}`;
   document.getElementById("kpi-mpDed").textContent    = `$${Math.abs(summary.totalMissingPunchDed||0).toFixed(2)}`;
   document.getElementById("kpi-total").textContent    = `$${Math.abs(summary.totalFinalDed||0).toFixed(2)}`;
@@ -1214,6 +1214,16 @@ function renderFinance(data) {
     return;
   }
 
+  // Show live-day notice if last date was excluded from MP deductions
+  let liveBanner = "";
+  if (lastDayIsLive && lastDay) {
+    const lastDisplay = lastDay.slice(0,5); // DD/MM
+    liveBanner = `<div style="background:#fff8e1;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#92400e;">
+      ⏳ <strong>Live report detected:</strong> ${lastDisplay} has 12+ missing punches — employees are still on shift.
+      MP deductions for <strong>${lastDisplay}</strong> are excluded from the calculation. Headcount deductions still apply.
+    </div>`;
+  }
+
   let totM=0,totMP=0,totF=0;
   let html=`<table class="finance-table"><thead><tr>
     <th>Date</th><th>Target</th><th>Present</th><th>Overlap</th>
@@ -1222,17 +1232,25 @@ function renderFinance(data) {
   </tr></thead><tbody>`;
 
   report.forEach(r=>{
-    const dClass=r.deficit<0?"td-red":r.deficit>0?"td-green":"td-grey";
+    const dClass = r.deficit<0?"td-red":r.deficit>0?"td-green":"td-grey";
+    const isLive = r.liveDay === true;
     totM+=r.moneyDed; totMP+=r.missingPunchDed; totF+=r.finalDed;
-    html+=`<tr>
-      <td>${r.display||r.date}</td>
+    // Live day row: highlight date cell and show "On Shift" badge for MP ded column
+    const dateCell = isLive
+      ? `<td><span style="color:#b45309;font-weight:600">${r.display||r.date}</span> <span style="font-size:10px;background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 5px">ON SHIFT</span></td>`
+      : `<td>${r.display||r.date}</td>`;
+    const mpDedCell = isLive
+      ? `<td class="td-grey" title="Excluded — employees still on shift">—</td>`
+      : `<td class="${r.missingPunchDed<0?"td-red":"td-grey"}">${r.missingPunchDed<0?r.missingPunchDed.toFixed(2):"—"}</td>`;
+    html+=`<tr${isLive?" style="background:#fffbeb;"":""}">
+      ${dateCell}
       <td>${r.target}</td>
       <td>${r.empCount}</td>
       <td>${r.overlapCount}</td>
       <td class="${dClass}">${r.deficit>=0?"+":""}${r.deficit}</td>
-      <td>${r.missingPunch}</td>
+      <td>${r.missingPunch}${isLive?" ⏳":""}</td>
       <td class="${r.moneyDed<0?"td-red":"td-grey"}">${r.moneyDed<0?r.moneyDed.toFixed(2):"—"}</td>
-      <td class="${r.missingPunchDed<0?"td-red":"td-grey"}">${r.missingPunchDed<0?r.missingPunchDed.toFixed(2):"—"}</td>
+      ${mpDedCell}
       <td class="${r.finalDed<0?"td-red":"td-grey"}">${r.finalDed<0?r.finalDed.toFixed(2):"—"}</td>
     </tr>`;
   });
@@ -1242,7 +1260,8 @@ function renderFinance(data) {
     <td class="${totMP<0?"td-red":""}">${totMP<0?totMP.toFixed(2):"—"}</td>
     <td class="${totF<0?"td-red":""}">${totF<0?totF.toFixed(2):"—"}</td>
   </tr></tfoot></table>`;
-  document.getElementById("financeTableWrapper").innerHTML=html;
+
+  document.getElementById("financeTableWrapper").innerHTML = liveBanner + html;
 
   // Missing punch breakdown
   renderBreakdown();
