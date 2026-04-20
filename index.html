@@ -6,7 +6,7 @@
 <title>ABC Soft Services — Punching System</title>
 <style>
 /* ============================================================
-   ABC Punching System v2.8.0
+   ABC Punching System v2.7.0
    Theme: ABC Mall — Crisp White / Deep Navy / Gold Accent
    Font: Barlow (corporate, readable, clean)
    ============================================================ */
@@ -374,11 +374,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
       <p class="login-sub">Sign in to access your flagship attendance dashboard</p>
       <div class="form-group">
         <label>Username</label>
-        <input type="text" id="loginUser" placeholder="e.g. admin.vrd" autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()">
+        <input type="text" id="loginUser" placeholder="e.g. admin.vrd" autocomplete="username">
       </div>
       <div class="form-group">
         <label>Password</label>
-        <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+        <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password">
       </div>
       <button class="btn-primary" id="loginBtn" onclick="doLogin()">Sign In →</button>
       <div class="login-error" id="loginError"></div>
@@ -386,7 +386,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
     <div class="login-right">
       <h2>Punching System</h2>
       <p>Import BPM punching reports, review attendance, manage exceptional approvals, and generate automated deduction reports — all in one place.</p>
-      <span class="login-right-badge">v2.8.0</span>
+      <span class="login-right-badge">v2.7.0</span>
     </div>
   </div>
 </div>
@@ -396,7 +396,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">ABC Punching System</div>
-      <div class="topbar-ver">v2.8.0</div>
+      <div class="topbar-ver">v2.7.0</div>
       <div class="topbar-flagship" id="topFlagship">—</div>
     </div>
     <div class="topbar-right">
@@ -621,30 +621,6 @@ if (typeof pdfjsLib !== 'undefined') {
 // ============================================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxjRmc59YkhlHA_3qRumCbLq4zEc0WM3GyE9z9UEyD2Kcz8hbm5EmNFBStIT3snli82Zw/exec";
 
-// Ping GAS on load to verify connectivity — shows warning if unreachable
-(async function pingOnLoad() {
-  try {
-    const res = await fetch(GAS_URL, {
-      method:"POST", body:JSON.stringify({action:"ping"}),
-      headers:{"Content-Type":"text/plain"}
-    });
-    if (res.ok) {
-      const d = await res.json();
-      if (d.ver) {
-        const verEl = document.querySelector(".login-right-badge");
-        if (verEl) verEl.title = "GAS v" + d.ver + " connected";
-      }
-    }
-  } catch(e) {
-    // Show connectivity warning on login screen
-    const errEl = document.getElementById("loginError");
-    if (errEl) {
-      errEl.textContent = "⚠️ Cannot reach server — check internet connection or redeploy GAS.";
-      errEl.style.display = "block";
-    }
-  }
-})();
-
 // ============================================================
 // STATE
 // ============================================================
@@ -660,27 +636,19 @@ let EDIT_CTX      = null; // { empId, empName, dateKey, currentRecord }
 async function doLogin() {
   const u = document.getElementById("loginUser").value.trim();
   const p = document.getElementById("loginPass").value;
-  if (!u || !p) { showLoginErr("Please enter username and password."); return; }
+  if (!u || !p) { showLoginErr("Enter username and password."); return; }
   const btn = document.getElementById("loginBtn");
   btn.disabled = true; btn.textContent = "Signing in…";
-  showLoginErr(""); // clear previous error
   try {
     const res = await api({ action:"login", username:u, password:p });
     if (res.ok) { SESSION = res.user; showApp(); }
-    else showLoginErr(res.error || "Login failed. Check credentials.");
-  } catch(e) {
-    console.error("Login error:", e);
-    const msg = e.message.includes("Failed to fetch") || e.message.includes("NetworkError")
-      ? "Cannot reach server. Check your internet connection or the GAS URL."
-      : "Connection error: " + e.message;
-    showLoginErr(msg);
-  }
+    else showLoginErr(res.error || "Login failed.");
+  } catch(e) { showLoginErr("Connection error — check GAS_URL in code."); }
   btn.disabled = false; btn.textContent = "Sign In →";
 }
 
 function showLoginErr(msg) {
   const el = document.getElementById("loginError");
-  if (!msg) { el.style.display = "none"; el.textContent = ""; return; }
   el.textContent = msg; el.style.display = "block";
 }
 
@@ -1234,7 +1202,7 @@ async function loadFinance() {
 }
 
 function renderFinance(data) {
-  const {report, summary, lastDayIsLive, lastDay} = data;
+  const {report, summary} = data;
   document.getElementById("kpi-moneyDed").textContent = `$${Math.abs(summary.totalMoneyDed||0).toFixed(2)}`;
   document.getElementById("kpi-mpDed").textContent    = `$${Math.abs(summary.totalMissingPunchDed||0).toFixed(2)}`;
   document.getElementById("kpi-total").textContent    = `$${Math.abs(summary.totalFinalDed||0).toFixed(2)}`;
@@ -1246,16 +1214,6 @@ function renderFinance(data) {
     return;
   }
 
-  // Show live-day notice if last date was excluded from MP deductions
-  let liveBanner = "";
-  if (lastDayIsLive && lastDay) {
-    const lastDisplay = lastDay.slice(0,5); // DD/MM
-    liveBanner = `<div style="background:#fff8e1;border:1px solid #f59e0b;border-radius:8px;padding:10px 14px;margin-bottom:12px;font-size:13px;color:#92400e;">
-      ⏳ <strong>Live report detected:</strong> ${lastDisplay} has 12+ missing punches — employees are still on shift.
-      MP deductions for <strong>${lastDisplay}</strong> are excluded from the calculation. Headcount deductions still apply.
-    </div>`;
-  }
-
   let totM=0,totMP=0,totF=0;
   let html=`<table class="finance-table"><thead><tr>
     <th>Date</th><th>Target</th><th>Present</th><th>Overlap</th>
@@ -1264,25 +1222,17 @@ function renderFinance(data) {
   </tr></thead><tbody>`;
 
   report.forEach(r=>{
-    const dClass = r.deficit<0?"td-red":r.deficit>0?"td-green":"td-grey";
-    const isLive = r.liveDay === true;
+    const dClass=r.deficit<0?"td-red":r.deficit>0?"td-green":"td-grey";
     totM+=r.moneyDed; totMP+=r.missingPunchDed; totF+=r.finalDed;
-    // Live day row: highlight date cell and show "On Shift" badge for MP ded column
-    const dateCell = isLive
-      ? `<td><span style="color:#b45309;font-weight:600">${r.display||r.date}</span> <span style="font-size:10px;background:#fef3c7;color:#92400e;border-radius:4px;padding:1px 5px">ON SHIFT</span></td>`
-      : `<td>${r.display||r.date}</td>`;
-    const mpDedCell = isLive
-      ? `<td class="td-grey" title="Excluded — employees still on shift">—</td>`
-      : `<td class="${r.missingPunchDed<0?"td-red":"td-grey"}">${r.missingPunchDed<0?r.missingPunchDed.toFixed(2):"—"}</td>`;
-    html+=`<tr${isLive?" style="background:#fffbeb;"":""}">
-      ${dateCell}
+    html+=`<tr>
+      <td>${r.display||r.date}</td>
       <td>${r.target}</td>
       <td>${r.empCount}</td>
       <td>${r.overlapCount}</td>
       <td class="${dClass}">${r.deficit>=0?"+":""}${r.deficit}</td>
-      <td>${r.missingPunch}${isLive?" ⏳":""}</td>
+      <td>${r.missingPunch}</td>
       <td class="${r.moneyDed<0?"td-red":"td-grey"}">${r.moneyDed<0?r.moneyDed.toFixed(2):"—"}</td>
-      ${mpDedCell}
+      <td class="${r.missingPunchDed<0?"td-red":"td-grey"}">${r.missingPunchDed<0?r.missingPunchDed.toFixed(2):"—"}</td>
       <td class="${r.finalDed<0?"td-red":"td-grey"}">${r.finalDed<0?r.finalDed.toFixed(2):"—"}</td>
     </tr>`;
   });
@@ -1292,8 +1242,7 @@ function renderFinance(data) {
     <td class="${totMP<0?"td-red":""}">${totMP<0?totMP.toFixed(2):"—"}</td>
     <td class="${totF<0?"td-red":""}">${totF<0?totF.toFixed(2):"—"}</td>
   </tr></tfoot></table>`;
-
-  document.getElementById("financeTableWrapper").innerHTML = liveBanner + html;
+  document.getElementById("financeTableWrapper").innerHTML=html;
 
   // Missing punch breakdown
   renderBreakdown();
