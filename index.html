@@ -355,6 +355,28 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   .tab-btn span.tab-label { display:none; }
   .cfg-row { grid-template-columns:1fr; }
 }
+
+/* ============================================================ DATE FILTER BAR (NEW) */
+.date-filter-bar {
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  background:var(--white); border:1px solid var(--border);
+  border-radius:10px; padding:10px 16px; margin-bottom:16px;
+}
+.date-filter-bar label {
+  font-size:12px; font-weight:700; color:var(--text2);
+  white-space:nowrap; text-transform:uppercase; letter-spacing:.05em;
+}
+.date-filter-bar input[type=date] {
+  border:1.5px solid var(--border); border-radius:var(--radius);
+  padding:6px 10px; font-size:13px; color:var(--navy);
+  background:var(--bg); font-family:var(--font); cursor:pointer;
+  transition:border-color .2s;
+}
+.date-filter-bar input[type=date]:focus { outline:none; border-color:var(--blue2); background:var(--white); }
+.filter-badge {
+  background:var(--gold); color:var(--navy); font-size:11px;
+  font-weight:700; border-radius:20px; padding:3px 12px;
+}
 </style>
 </head>
 <body>
@@ -462,6 +484,16 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
           <button class="btn btn-outline btn-sm" onclick="exportAttendance()">⬇ Export CSV</button>
         </div>
       </div>
+      <!-- DATE FILTER BAR — ATTENDANCE (NEW) -->
+      <div class="date-filter-bar">
+        <label>📅 Filter:</label>
+        <label>From</label>
+        <input type="date" id="attFrom" onchange="applyAttFilter()">
+        <label>To</label>
+        <input type="date" id="attTo" onchange="applyAttFilter()">
+        <button class="btn btn-outline btn-sm" onclick="clearAttFilter()">✕ Clear</button>
+        <span id="attFilterBadge" class="filter-badge" style="display:none">Filtered</span>
+      </div>
       <div class="card" style="padding:0;overflow:hidden">
         <div id="attendanceContent">
           <div class="state-empty"><div class="state-icon">📋</div>No data — upload a file first</div>
@@ -485,6 +517,16 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
           <button class="btn btn-outline btn-sm" onclick="exportFinance()">⬇ Export CSV</button>
         </div>
       </div>
+      <!-- DATE FILTER BAR — FINANCE (NEW) -->
+      <div class="date-filter-bar">
+        <label>📅 Filter:</label>
+        <label>From</label>
+        <input type="date" id="finFrom" onchange="applyFinFilter()">
+        <label>To</label>
+        <input type="date" id="finTo" onchange="applyFinFilter()">
+        <button class="btn btn-outline btn-sm" onclick="clearFinFilter()">✕ Clear</button>
+        <span id="finFilterBadge" class="filter-badge" style="display:none">Filtered</span>
+      </div>
       <div class="kpi-grid">
         <div class="kpi-card"><div class="kpi-label">Money Deduction</div><div class="kpi-value red" id="kpi-moneyDed">—</div></div>
         <div class="kpi-card"><div class="kpi-label">MP Deduction (2 punches = 1 day)</div><div class="kpi-value orange" id="kpi-mpDed">—</div></div>
@@ -506,7 +548,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
 
     <!-- ===== CONFIG ===== -->
     <div class="tab-panel" id="tab-config">
-      <!-- Penalty / supervisor config -->
       <div class="card">
         <div class="card-title">⚙ Flagship Settings — <span id="cfgFlagshipLabel">—</span></div>
         <div class="cfg-row">
@@ -520,7 +561,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
         <button class="btn btn-navy" onclick="saveConfig()">💾 Save Settings</button>
       </div>
 
-      <!-- Headcount Ranges -->
       <div class="card">
         <div class="section-header" style="margin-bottom:14px">
           <div class="card-title" style="margin:0">📅 Headcount by Date Range</div>
@@ -551,13 +591,11 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
         </div>
       </div>
 
-      <!-- Debug Panel -->
       <div class="card" id="debugCard" style="display:none">
         <div class="card-title" style="color:var(--orange)">🔍 Debug Output — Raw GAS Response</div>
         <pre id="debugOutput" style="font-size:11px;font-family:var(--mono);background:var(--bg2);padding:16px;border-radius:8px;overflow-x:auto;white-space:pre-wrap;max-height:400px;overflow-y:auto;color:var(--text)"></pre>
       </div>
 
-      <!-- Danger zone -->
       <div class="danger-zone">
         <div class="danger-title">⚠ Danger Zone — Clear Month Data</div>
         <div class="danger-desc">Permanently deletes all attendance records for this flagship. Use at the start of a new month only. This cannot be undone.</div>
@@ -593,7 +631,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
       </div>
     </div>
     <div class="modal-field">
-      <label>Comment / Reason for Edit ⁎ Required</label>
+      <label>Comment / Reason for Edit ❖ Required</label>
       <textarea id="editComment" placeholder="e.g. Approved by Operations Manager — employee punched via security system at gate B only"></textarea>
     </div>
     <div class="modal-footer">
@@ -617,7 +655,7 @@ if (typeof pdfjsLib !== 'undefined') {
 </script>
 <script>
 // ============================================================
-// CONFIG — UPDATE BEFORE DEPLOYING
+// CONFIG
 // ============================================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxjRmc59YkhlHA_3qRumCbLq4zEc0WM3GyE9z9UEyD2Kcz8hbm5EmNFBStIT3snli82Zw/exec";
 
@@ -628,7 +666,7 @@ let SESSION       = null;
 let PARSED_DATA   = null;
 let ATTENDANCE    = null;
 let FINANCE_DATA  = null;
-let EDIT_CTX      = null; // { empId, empName, dateKey, currentRecord }
+let EDIT_CTX      = null;
 
 // ============================================================
 // AUTH
@@ -684,7 +722,87 @@ function switchTab(tab) {
 }
 
 // ============================================================
-// FILE PARSING
+// DATE FILTER HELPERS (NEW)
+// ============================================================
+// Convert DD/MM or DD/MM/YYYY dateKey to YYYY-MM-DD for comparison with <input type=date>
+function dkToISO(dk) {
+  if (!dk) return "";
+  const p = String(dk).split("/");
+  if (p.length >= 3) return p[2]+"-"+p[1].padStart(2,"0")+"-"+p[0].padStart(2,"0");
+  return new Date().getFullYear()+"-"+p[1].padStart(2,"0")+"-"+p[0].padStart(2,"0");
+}
+
+function filterAttData(data, from, to) {
+  if (!from && !to) return data;
+  const filteredDays = data.days.filter(dk => {
+    const iso = dkToISO(dk);
+    if (from && iso < from) return false;
+    if (to   && iso > to)   return false;
+    return true;
+  });
+  const filteredEmps = data.employees.map(emp => {
+    const days = {};
+    filteredDays.forEach(d => { if (emp.days[d]) days[d] = emp.days[d]; });
+    return { ...emp, days };
+  });
+  return { ...data, days: filteredDays, employees: filteredEmps };
+}
+
+function filterFinData(data, from, to) {
+  if (!from && !to) return data;
+  const filteredReport = (data.report || []).filter(r => {
+    const iso = dkToISO(r.date);
+    if (from && iso < from) return false;
+    if (to   && iso > to)   return false;
+    return true;
+  });
+  let totalMoneyDed=0, totalMissingPunch=0, totalMissingPunchDed=0, totalFinalDed=0;
+  filteredReport.forEach(r => {
+    totalMoneyDed        += (r.moneyDed        || 0);
+    totalMissingPunch    += (r.missingPunch     || 0);
+    totalMissingPunchDed += (r.missingPunchDed  || 0);
+    totalFinalDed        += (r.finalDed         || 0);
+  });
+  return {
+    ...data,
+    report: filteredReport,
+    summary: {
+      ...data.summary,
+      totalMoneyDed:        Math.round(totalMoneyDed*100)/100,
+      totalMissingPunch,
+      totalMissingPunchDed: Math.round(totalMissingPunchDed*100)/100,
+      totalFinalDed:        Math.round(totalFinalDed*100)/100
+    }
+  };
+}
+
+function applyAttFilter() {
+  if (!ATTENDANCE) return;
+  const from=document.getElementById("attFrom").value, to=document.getElementById("attTo").value;
+  document.getElementById("attFilterBadge").style.display=(from||to)?"inline":"none";
+  renderGrid(filterAttData(ATTENDANCE, from, to));
+}
+function clearAttFilter() {
+  document.getElementById("attFrom").value="";
+  document.getElementById("attTo").value="";
+  document.getElementById("attFilterBadge").style.display="none";
+  if (ATTENDANCE) renderGrid(ATTENDANCE);
+}
+function applyFinFilter() {
+  if (!FINANCE_DATA) return;
+  const from=document.getElementById("finFrom").value, to=document.getElementById("finTo").value;
+  document.getElementById("finFilterBadge").style.display=(from||to)?"inline":"none";
+  renderFinance(filterFinData(FINANCE_DATA, from, to));
+}
+function clearFinFilter() {
+  document.getElementById("finFrom").value="";
+  document.getElementById("finTo").value="";
+  document.getElementById("finFilterBadge").style.display="none";
+  if (FINANCE_DATA) renderFinance(FINANCE_DATA);
+}
+
+// ============================================================
+// FILE PARSING (unchanged from v2.7.0)
 // ============================================================
 function handleDragOver(e) { e.preventDefault(); document.getElementById("uploadZone").classList.add("dragover"); }
 function handleDragLeave()  { document.getElementById("uploadZone").classList.remove("dragover"); }
@@ -697,13 +815,8 @@ function handleFileSelect(e) { if (e.target.files[0]) parseFile(e.target.files[0
 function parseFile(file) {
   showStatus("info", `📂 Parsing: ${file.name} …`);
   document.getElementById("previewSection").style.display = "none";
-
   const isPDF = file.name.toLowerCase().endsWith(".pdf");
-  if (isPDF) {
-    parsePDF(file);
-  } else {
-    parseExcel(file);
-  }
+  if (isPDF) { parsePDF(file); } else { parseExcel(file); }
 }
 
 function parseExcel(file) {
@@ -732,15 +845,8 @@ async function parsePDF(file) {
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     showStatus("info", `📄 PDF loaded — ${pdf.numPages} pages. Processing…`);
 
-    // Reconstruct layout text from PDF.js items (like pdftotext -layout)
-    // CHAR_WIDTH: points per character for BPM report font
-    // SNAP: grid size for grouping items into visual rows
-    // PDF.js y = pageH - transform[5] (baseline from top of page)
-    // Name chars have slightly larger y than punch chars on same visual row due to font height
-    // snap=4 merges them into the same row bucket reliably
     const CHAR_WIDTH = 5.5;
     const SNAP       = 4;
-
     const employees       = {};
     const allDatesOrdered = [];
     const allDatesSet     = {};
@@ -751,24 +857,19 @@ async function parsePDF(file) {
       const pageH     = viewport.height;
       const pgContent = await page.getTextContent();
 
-      // Build items: x = left edge, y = top-down baseline position
       const items = [];
       pgContent.items.forEach(item => {
         const t = item.str.trim();
         if (!t) return;
-        // PDF.js transform[5] is baseline from bottom of page
-        // y = pageH - transform[5] gives baseline from top of page
         items.push({ text: t, x: item.transform[4], y: pageH - item.transform[5] });
       });
 
-      // Group items into visual rows using snap grid
       const rowsMap = {};
       items.forEach(item => {
         const rk = Math.round(item.y / SNAP) * SNAP;
         (rowsMap[rk] = rowsMap[rk] || []).push(item);
       });
 
-      // Build layout lines: each item placed at its character column position
       const lines = [];
       Object.keys(rowsMap).map(Number).sort((a,b) => a-b).forEach(rk => {
         const rowItems = rowsMap[rk].slice().sort((a,b) => a.x - b.x);
@@ -781,12 +882,10 @@ async function parsePDF(file) {
         lines.push(line.trimEnd());
       });
 
-      // Parse layout lines
       const dateRe = /\d{2}\/\d{2}/g;
       const empRe  = /^\s{1,10}(\d{5})\s+([A-Za-z][A-Za-z\s]+)/;
       const timeRe = /\d{2}:\d{2}/g;
 
-      // Extract HH:MM values from a line aligned to date column positions
       const extractTimes = (ln, dpm) => {
         const result = {}, times = [];
         let tm; timeRe.lastIndex = 0;
@@ -806,8 +905,6 @@ async function parsePDF(file) {
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-
-        // Detect header row: contains "Number", "Name", and DD/MM dates
         if (/Number\s+Name/.test(line) && /\d{2}\/\d{2}/.test(line)) {
           datePosMap = [];
           let m; dateRe.lastIndex = 0;
@@ -819,20 +916,13 @@ async function parsePDF(file) {
           }
           continue;
         }
-
         if (!datePosMap.length) continue;
-
-        // Detect employee line: 5-digit ID followed by alphabetic name
         empRe.lastIndex = 0;
         const empM = empRe.exec(line);
         if (!empM) continue;
-
         const empId   = empM[1];
         const empName = empM[2].trim();
-        if (!empName) continue;  // guard against false positives
-
-        // Collect up to 3 data rows (IN, OUT, TOTAL)
-        // Stop at the next employee line or header
+        if (!empName) continue;
         const dataRows = [extractTimes(line, datePosMap)];
         let lookahead = i + 1;
         while (lookahead < lines.length && dataRows.length < 3) {
@@ -843,25 +933,19 @@ async function parsePDF(file) {
           dataRows.push(extractTimes(nextLine, datePosMap));
           lookahead++;
         }
-
-        // Build days from the collected punch rows
         const days = {};
         datePosMap.forEach(dp => {
           const punches = dataRows.map(r => r[dp.date]).filter(Boolean);
           if (punches.length && !punches.every(v => v === "00:00"))
             days[dp.date] = punches.join("\n");
         });
-
         if (!employees[empId]) employees[empId] = { id: empId, name: empName, days: {} };
         else if (!employees[empId].name && empName) employees[empId].name = empName;
         Object.assign(employees[empId].days, days);
-
-        // Advance past the data rows we already consumed
         i = lookahead - 1;
       }
     }
 
-    // Sort dates chronologically (DD/MM → sort by month then day)
     allDatesOrdered.sort((a,b) => {
       const ai = parseInt(a.slice(3,5)) * 100 + parseInt(a.slice(0,2));
       const bi = parseInt(b.slice(3,5)) * 100 + parseInt(b.slice(0,2));
@@ -873,7 +957,6 @@ async function parsePDF(file) {
       showStatus("error", "❌ No employee data found. Please verify the PDF is a valid BPM punching report.");
       return;
     }
-
     finishParse({ employees: empList, dates: allDatesOrdered });
   } catch(err) {
     showStatus("error", "❌ PDF parse error: " + err.message);
@@ -894,26 +977,20 @@ function finishParse(parsed) {
 }
 
 function parseBPMSheet(ws) {
-  // Get worksheet range
   const ref  = ws["!ref"] ? XLSX.utils.decode_range(ws["!ref"]) : null;
   if (!ref)  throw new Error("Empty worksheet");
-  const R    = ref.e.r; // last row index (0-based)
-  const C    = ref.e.c; // last col index (0-based)
+  const R    = ref.e.r;
+  const C    = ref.e.c;
 
-  // Helper: get plain text from a cell, preserving \n from wrapped multiline cells
   function cellText(r, c) {
     const addr = XLSX.utils.encode_cell({r, c});
     const cell = ws[addr];
     if (!cell) return "";
-    // cell.v is the raw value; for text cells with \n it preserves line breaks
-    // cell.w is the formatted display (may lose \n)
-    // We prefer cell.v for string type, fall back to cell.w
-    if (cell.t === "s") return String(cell.v || "");  // string: use raw value
-    if (cell.w) return String(cell.w);                 // number/date: use formatted
+    if (cell.t === "s") return String(cell.v || "");
+    if (cell.w) return String(cell.w);
     return String(cell.v || "");
   }
 
-  // Find header row: col 0 = "Number", col 1 = "Name"
   let hRow = -1;
   for (let r=0; r<=Math.min(R,9); r++) {
     const a = cellText(r,0); const b = cellText(r,1);
@@ -921,29 +998,24 @@ function parseBPMSheet(ws) {
   }
   if (hRow===-1) throw new Error("Header row not found (Number/Name)");
 
-  // Collect date columns (DD/MM format in header row)
   const dateCols = [];
   for (let c=2; c<=C; c++) {
     const h = cellText(hRow, c).trim();
-    if (/^\d{2}\/\d{2}$/.test(h))            dateCols.push({c, date:h});
+    if (/^\d{2}\/\d{2}$/.test(h))             dateCols.push({c, date:h});
     else if (/^\d{2}\/\d{2}\/\d{4}$/.test(h)) dateCols.push({c, date:h.slice(0,5)});
   }
   if (!dateCols.length) throw new Error("No date columns (DD/MM) found in header");
 
-  // Collect employees: rows where col 0 is numeric ID and col 1 is a name
   const employees = [];
   for (let r=hRow+1; r<=R; r++) {
     const empId = cellText(r,0).trim();
     const name  = cellText(r,1).trim();
     if (!empId || isNaN(Number(empId)) || !name) continue;
-
     const days = {};
     dateCols.forEach(({c, date}) => {
-      // Use raw cell value — this is where \n is preserved for multiline punch cells
       const addr = XLSX.utils.encode_cell({r, c});
       const cell = ws[addr];
       if (!cell) return;
-      // For string cells with line breaks, cell.v contains the \n-separated string
       let raw = "";
       if (cell.t === "s") raw = String(cell.v || "").trim();
       else if (cell.w)    raw = String(cell.w).trim();
@@ -961,7 +1033,7 @@ function showStatus(type, msg) {
 }
 
 // ============================================================
-// PREVIEW
+// PREVIEW (unchanged)
 // ============================================================
 function renderPreview(parsed) {
   document.getElementById("previewCount").textContent = parsed.employees.length;
@@ -1006,7 +1078,7 @@ async function confirmUpload() {
 }
 
 // ============================================================
-// ATTENDANCE GRID
+// ATTENDANCE GRID (updated to apply filter on load)
 // ============================================================
 async function loadAttendance() {
   document.getElementById("attendanceContent").innerHTML =
@@ -1015,7 +1087,8 @@ async function loadAttendance() {
     const res = await api({ action:"getProcessed", flagship:SESSION.flagship, username:SESSION.username });
     if (!res.ok) throw new Error(res.error);
     ATTENDANCE = res;
-    renderGrid(res);
+    const from=document.getElementById("attFrom").value, to=document.getElementById("attTo").value;
+    renderGrid(filterAttData(res, from, to));
   } catch(e) {
     document.getElementById("attendanceContent").innerHTML =
       `<div class="state-empty"><div class="state-icon">❌</div>${e.message}</div>`;
@@ -1029,7 +1102,6 @@ function renderGrid(data) {
     el.innerHTML = `<div class="state-empty"><div class="state-icon">📋</div>No data. Upload a file first.</div>`;
     meta.textContent = "No data"; return;
   }
-  // Sort days
   const days = [...data.days].sort((a,b)=>toSortKey(a).localeCompare(toSortKey(b)));
   const emps = data.employees;
   meta.textContent = `${emps.length} employees · ${days.length} days`;
@@ -1046,9 +1118,7 @@ function renderGrid(data) {
       if (!rec) {
         html += `<td class="cell-empty cell-clickable" ${clickAttr}>—</td>`;
       } else if (rec.manualOverride) {
-        const label = rec.status==="OK"
-          ? `✎${fmtMin(rec.minutes)}`
-          : rec.status==="Missing Punch" ? "✎MP" : "✎OFF";
+        const label = rec.status==="OK" ? `✎${fmtMin(rec.minutes)}` : rec.status==="Missing Punch" ? "✎MP" : "✎OFF";
         html += `<td class="cell-manual cell-clickable" title="${escHtml(rec.editLog)}" ${clickAttr}>${label}</td>`;
       } else if (rec.status==="OFF") {
         html += `<td class="cell-off cell-clickable" ${clickAttr}>OFF</td>`;
@@ -1064,15 +1134,8 @@ function renderGrid(data) {
   el.innerHTML = html;
 }
 
-function fmtMin(m) {
-  const h=Math.floor(m/60), mn=m%60;
-  return `${h}:${String(mn).padStart(2,'0')}`;
-}
-function toDisplayDate(dk) {
-  if (!dk) return "";
-  const p=dk.split("/");
-  return p.length>=2 ? p[0]+"/"+p[1] : dk;
-}
+function fmtMin(m) { const h=Math.floor(m/60),mn=m%60; return `${h}:${String(mn).padStart(2,'0')}`; }
+function toDisplayDate(dk) { if (!dk) return ""; const p=dk.split("/"); return p.length>=2 ? p[0]+"/"+p[1] : dk; }
 function toSortKey(dk) {
   if (!dk) return "00000000";
   const p=String(dk).split("/");
@@ -1080,13 +1143,15 @@ function toSortKey(dk) {
   if (p.length===2) return "2026"+p[1]+p[0];
   return "00000000";
 }
-function escHtml(s) { return String(s||"").replace(/'/g,"\\'").replace(/"/g,"&quot;"); }
+function escHtml(s) { return String(s||"").replace(/'/g,"\'").replace(/"/g,"&quot;"); }
 
 function exportAttendance() {
   if (!ATTENDANCE) { toast("Load attendance first","error"); return; }
-  const days=[...ATTENDANCE.days].sort((a,b)=>toSortKey(a).localeCompare(toSortKey(b)));
-  let csv="ID,Name,"+days.map(toDisplayDate).join(",")+"\n";
-  ATTENDANCE.employees.forEach(emp => {
+  const from=document.getElementById("attFrom").value, to=document.getElementById("attTo").value;
+  const data = filterAttData(ATTENDANCE, from, to);
+  const days=[...data.days].sort((a,b)=>toSortKey(a).localeCompare(toSortKey(b)));
+  let csv="ID,Name,"+days.map(toDisplayDate).join(",")+",\n";
+  data.employees.forEach(emp => {
     const row=[emp.id,`"${emp.name}"`];
     days.forEach(d => {
       const rec=emp.days[d];
@@ -1095,31 +1160,25 @@ function exportAttendance() {
       else if (rec.status==="Missing Punch") row.push("MP");
       else row.push(fmtMin(rec.minutes));
     });
-    csv+=row.join(",")+"\n";
+    csv+=row.join(",")+",\n";
   });
   downloadCSV(csv, `Attendance_${SESSION.flagship}_${today()}.csv`);
 }
 
 // ============================================================
-// EDIT MODAL
+// EDIT MODAL (unchanged)
 // ============================================================
 function openEditModal(empId, empName, dateKey) {
-  // Find record in ATTENDANCE
   let rec = null;
   if (ATTENDANCE) {
     const emp = ATTENDANCE.employees.find(e=>e.id===empId);
     if (emp) rec = emp.days[dateKey] || null;
   }
   EDIT_CTX = { empId, empName, dateKey, rec };
-
   document.getElementById("editModalBadge").textContent = `${empId} — ${empName} — ${toDisplayDate(dateKey)}`;
-
-  // Pre-fill
   document.getElementById("editStatus").value  = rec ? rec.status : "OK";
   document.getElementById("editMinutes").value = rec ? rec.minutes : "";
   document.getElementById("editComment").value = "";
-
-  // Show edit log if exists
   const logSection = document.getElementById("editLogSection");
   const logBox     = document.getElementById("editLogBox");
   if (rec && rec.editLog) {
@@ -1128,7 +1187,6 @@ function openEditModal(empId, empName, dateKey) {
   } else {
     logSection.style.display = "none";
   }
-
   document.getElementById("editModal").classList.add("open");
   document.getElementById("editComment").focus();
 }
@@ -1142,51 +1200,37 @@ async function submitEdit() {
   if (!EDIT_CTX) return;
   const comment = document.getElementById("editComment").value.trim();
   if (!comment) { toast("Comment is required for every edit","error"); return; }
-
   const status  = document.getElementById("editStatus").value;
   const minutes = Number(document.getElementById("editMinutes").value) || 0;
-
   try {
     const res = await api({
-      action:      "editPunch",
-      flagship:    SESSION.flagship,
-      username:    SESSION.username,
-      empId:       EDIT_CTX.empId,
-      dateKey:     EDIT_CTX.dateKey,
-      newStatus:   status,
-      newMinutes:  minutes,
-      comment
+      action:"editPunch", flagship:SESSION.flagship, username:SESSION.username,
+      empId:EDIT_CTX.empId, dateKey:EDIT_CTX.dateKey,
+      newStatus:status, newMinutes:minutes, comment
     });
     if (res.ok) {
       toast("Punch updated — reload attendance to see changes","success");
       closeEditModal();
-      ATTENDANCE=null; FINANCE_DATA=null; // invalidate cache
+      ATTENDANCE=null; FINANCE_DATA=null;
       loadAttendance();
-    } else {
-      toast(res.error||"Save failed","error");
-    }
+    } else { toast(res.error||"Save failed","error"); }
   } catch(e) { toast("Network error: "+e.message,"error"); }
 }
 
-// Close modal on overlay click
 document.getElementById("editModal").addEventListener("click", e => {
   if (e.target === document.getElementById("editModal")) closeEditModal();
 });
 
 // ============================================================
-// FINANCE
+// FINANCE (updated to apply filter on load)
 // ============================================================
 async function loadFinance() {
   document.getElementById("financeTableWrapper").innerHTML =
     `<div class="state-loading"><div class="spinner"></div>Calculating…</div>`;
   try {
-    // Send RANGES directly so GAS never needs to read them from the sheet
-    // This bypasses all Sheets date-format ambiguity for the headcount lookup
     const res = await api({
-      action:    "getFinance",
-      flagship:  SESSION.flagship,
-      username:  SESSION.username,
-      ranges:    RANGES.map(r => ({
+      action:"getFinance", flagship:SESSION.flagship, username:SESSION.username,
+      ranges: RANGES.map(r => ({
         from:      normDateStr(r.from),
         to:        normDateStr(r.to),
         headcount: Number(r.headcount) || 46
@@ -1194,7 +1238,8 @@ async function loadFinance() {
     });
     if (!res.ok) throw new Error(res.error);
     FINANCE_DATA = res;
-    renderFinance(res);
+    const from=document.getElementById("finFrom").value, to=document.getElementById("finTo").value;
+    renderFinance(filterFinData(res, from, to));
   } catch(e) {
     document.getElementById("financeTableWrapper").innerHTML =
       `<div class="state-empty"><div class="state-icon">❌</div>${e.message}</div>`;
@@ -1243,8 +1288,6 @@ function renderFinance(data) {
     <td class="${totF<0?"td-red":""}">${totF<0?totF.toFixed(2):"—"}</td>
   </tr></tfoot></table>`;
   document.getElementById("financeTableWrapper").innerHTML=html;
-
-  // Missing punch breakdown
   renderBreakdown();
 }
 
@@ -1268,7 +1311,8 @@ function renderBreakdown() {
 
 function exportFinance() {
   if (!FINANCE_DATA) { toast("Load finance data first","error"); return; }
-  const {report,summary}=FINANCE_DATA;
+  const from=document.getElementById("finFrom").value, to=document.getElementById("finTo").value;
+  const {report,summary}=filterFinData(FINANCE_DATA, from, to);
   let csv="Date,Target,Present,Overlap,Deficit,MissingPunch,MoneyDed,MPDed,FinalDed\n";
   report.forEach(r=>{ csv+=`${r.date},${r.target},${r.empCount},${r.overlapCount},${r.deficit},${r.missingPunch},${r.moneyDed},${r.missingPunchDed},${r.finalDed}\n`; });
   csv+=`TOTAL,,,,,${summary.totalMissingPunch},${summary.totalMoneyDed},${summary.totalMissingPunchDed},${summary.totalFinalDed}\n`;
@@ -1276,7 +1320,7 @@ function exportFinance() {
 }
 
 // ============================================================
-// CONFIG
+// CONFIG (unchanged)
 // ============================================================
 async function loadConfig() {
   if (!SESSION) return;
@@ -1306,7 +1350,7 @@ async function saveConfig() {
 }
 
 // ============================================================
-// HEADCOUNT RANGES
+// HEADCOUNT RANGES (unchanged)
 // ============================================================
 let RANGES = [];
 
@@ -1357,22 +1401,18 @@ async function resetRanges() {
   } catch(e) { toast("Network error: " + e.message, "error"); }
 }
 
-// Normalize any date string to DD/MM/YYYY (zero-padded) before saving
 function normDateStr(s) {
   if (!s) return "";
   s = String(s).trim();
-  // Already correct
   if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
-  // D/M/YYYY or D/M or DD/MM
   const m = s.match(/^(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?$/);
   if (m) {
     return m[1].padStart(2,"0") + "/" + m[2].padStart(2,"0") + "/" + (m[3] || "2026");
   }
-  return s; // return as-is if unrecognised
+  return s;
 }
 
 async function saveRanges() {
-  // Normalise all dates before sending
   const normalized = RANGES.map(r => ({
     ...r,
     from: normDateStr(r.from),
@@ -1381,7 +1421,7 @@ async function saveRanges() {
   try {
     const res = await api({ action:"saveRanges", flagship:SESSION.flagship, username:SESSION.username, ranges:normalized });
     if (res.ok) {
-      RANGES = normalized; // update local state with normalised dates
+      RANGES = normalized;
       renderRanges();
       toast("Headcount ranges saved","success");
     } else {
@@ -1402,13 +1442,11 @@ async function confirmClearMonth() {
 }
 
 // ============================================================
-// CLIENT-SIDE PUNCH NORMALIZER (for upload preview only)
+// CLIENT-SIDE PUNCH NORMALIZER (unchanged)
 // ============================================================
 function normalizePunch(raw) {
   if (!raw||raw.trim()==="") return {status:"OFF",minutes:0};
-  // Split on newlines OR spaces — handles both multiline wrap and space-joined
   const lines=raw.trim().split(/[\n\r\s]+/).map(l=>l.trim()).filter(Boolean);
-  // Skip last line only when exactly 3 HH:MM-like tokens (IN / OUT / TOTAL pattern)
   const allTimeLike = lines.every(l=>/^\d{1,2}:\d{2}$/.test(l));
   const skipLast = lines.length===3 && allTimeLike;
   const valid=[]; const seen={};
@@ -1437,7 +1475,7 @@ function normalizePunch(raw) {
 }
 
 // ============================================================
-// API & UTILITIES
+// API & UTILITIES (unchanged)
 // ============================================================
 async function api(payload) {
   const res = await fetch(GAS_URL, {
@@ -1455,16 +1493,13 @@ async function runDebug() {
   out.textContent = "⏳ Calling GAS debug endpoint…";
   try {
     const res = await api({
-      action:   "debug",
-      flagship: SESSION.flagship,
-      ranges:   RANGES.map(r => ({
+      action:"debug", flagship:SESSION.flagship,
+      ranges: RANGES.map(r => ({
         from: normDateStr(r.from), to: normDateStr(r.to), headcount: Number(r.headcount)||46
       }))
     });
     out.textContent = JSON.stringify(res.debug || res, null, 2);
-  } catch(e) {
-    out.textContent = "Error: " + e.message;
-  }
+  } catch(e) { out.textContent = "Error: " + e.message; }
 }
 
 function toast(msg, type="info") {
