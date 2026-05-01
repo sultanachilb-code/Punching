@@ -6,7 +6,7 @@
 <title>ABC Soft Services — Punching System</title>
 <style>
 /* ============================================================
-   ABC Punching System v2.9.1
+   ABC Punching System v2.8.0
    Theme: ABC Mall — Crisp White / Deep Navy / Gold Accent
    Font: Barlow (corporate, readable, clean)
    ============================================================ */
@@ -355,23 +355,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   .tab-btn span.tab-label { display:none; }
   .cfg-row { grid-template-columns:1fr; }
 }
-
-/* ── Date Filter Bar ─────────────── */
-.date-filter-bar {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: 10px; padding: 10px 16px; margin-bottom: 14px;
-}
-.date-filter-bar label { font-size: 12px; font-weight: 600; color: var(--text2); white-space: nowrap; }
-.date-filter-bar input[type=date] {
-  border: 1px solid var(--border); border-radius: 6px;
-  padding: 5px 10px; font-size: 13px; color: var(--navy); background: var(--bg);
-}
-.date-filter-bar input[type=date]:focus { outline: none; border-color: var(--gold); }
-.filter-active-badge {
-  background: var(--gold); color: var(--navy); font-size: 11px;
-  font-weight: 700; border-radius: 20px; padding: 2px 10px; margin-left: 4px;
-}
 </style>
 </head>
 <body>
@@ -403,7 +386,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
     <div class="login-right">
       <h2>Punching System</h2>
       <p>Import BPM punching reports, review attendance, manage exceptional approvals, and generate automated deduction reports — all in one place.</p>
-      <span class="login-right-badge">v2.9.0</span>
+      <span class="login-right-badge">v2.8.0</span>
     </div>
   </div>
 </div>
@@ -413,7 +396,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
   <div class="topbar">
     <div class="topbar-left">
       <div class="topbar-logo">ABC Punching System</div>
-      <div class="topbar-ver">v2.9.0</div>
+      <div class="topbar-ver">v2.8.0</div>
       <div class="topbar-flagship" id="topFlagship">—</div>
     </div>
     <div class="topbar-right">
@@ -479,15 +462,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
           <button class="btn btn-outline btn-sm" onclick="exportAttendance()">⬇ Export CSV</button>
         </div>
       </div>
-      <div class="date-filter-bar">
-        <label>📅 Filter dates:</label>
-        <label>From</label>
-        <input type="date" id="attFrom" onchange="applyAttFilter()">
-        <label>To</label>
-        <input type="date" id="attTo" onchange="applyAttFilter()">
-        <button class="btn btn-outline btn-sm" onclick="clearAttFilter()">✕ Clear</button>
-        <span id="attFilterBadge" style="display:none" class="filter-active-badge">Filtered</span>
-      </div>
       <div class="card" style="padding:0;overflow:hidden">
         <div id="attendanceContent">
           <div class="state-empty"><div class="state-icon">📋</div>No data — upload a file first</div>
@@ -510,15 +484,6 @@ body { font-family: var(--font); background: var(--bg); color: var(--text); min-
           <button class="btn btn-outline btn-sm" onclick="loadFinance()">🔄 Refresh</button>
           <button class="btn btn-outline btn-sm" onclick="exportFinance()">⬇ Export CSV</button>
         </div>
-      </div>
-      <div class="date-filter-bar">
-        <label>📅 Filter dates:</label>
-        <label>From</label>
-        <input type="date" id="finFrom" onchange="applyFinFilter()">
-        <label>To</label>
-        <input type="date" id="finTo" onchange="applyFinFilter()">
-        <button class="btn btn-outline btn-sm" onclick="clearFinFilter()">✕ Clear</button>
-        <span id="finFilterBadge" style="display:none" class="filter-active-badge">Filtered</span>
       </div>
       <div class="kpi-grid">
         <div class="kpi-card"><div class="kpi-label">Money Deduction</div><div class="kpi-value red" id="kpi-moneyDed">—</div></div>
@@ -657,8 +622,28 @@ if (typeof pdfjsLib !== 'undefined') {
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxjRmc59YkhlHA_3qRumCbLq4zEc0WM3GyE9z9UEyD2Kcz8hbm5EmNFBStIT3snli82Zw/exec";
 
 // Ping GAS on load to verify connectivity — shows warning if unreachable
-// Ping is disabled — prevents any errors blocking the login screen
-// (async function pingOnLoad() { ... })();
+(async function pingOnLoad() {
+  try {
+    const res = await fetch(GAS_URL, {
+      method:"POST", body:JSON.stringify({action:"ping"}),
+      headers:{"Content-Type":"text/plain"}
+    });
+    if (res.ok) {
+      const d = await res.json();
+      if (d.ver) {
+        const verEl = document.querySelector(".login-right-badge");
+        if (verEl) verEl.title = "GAS v" + d.ver + " connected";
+      }
+    }
+  } catch(e) {
+    // Show connectivity warning on login screen
+    const errEl = document.getElementById("loginError");
+    if (errEl) {
+      errEl.textContent = "⚠️ Cannot reach server — check internet connection or redeploy GAS.";
+      errEl.style.display = "block";
+    }
+  }
+})();
 
 // ============================================================
 // STATE
@@ -673,46 +658,24 @@ let EDIT_CTX      = null; // { empId, empName, dateKey, currentRecord }
 // AUTH
 // ============================================================
 async function doLogin() {
-  const u = (document.getElementById("loginUser").value || "").trim();
-  const p = (document.getElementById("loginPass").value || "");
+  const u = document.getElementById("loginUser").value.trim();
+  const p = document.getElementById("loginPass").value;
+  if (!u || !p) { showLoginErr("Please enter username and password."); return; }
   const btn = document.getElementById("loginBtn");
-
-  if (!u || !p) { showLoginErr("Enter username and password."); return; }
-
-  // Disable button
-  btn.disabled = true;
-  btn.textContent = "Signing in…";
-  showLoginErr("");
-
-  let res = null;
+  btn.disabled = true; btn.textContent = "Signing in…";
+  showLoginErr(""); // clear previous error
   try {
-    const raw = await fetch(GAS_URL, {
-      method: "POST",
-      body: JSON.stringify({ action: "login", username: u, password: p }),
-      headers: { "Content-Type": "text/plain" },
-      redirect: "follow"
-    });
-    const text = await raw.text();
-    console.log("GAS raw response:", text.substring(0, 200));
-    try {
-      res = JSON.parse(text);
-    } catch(parseErr) {
-      showLoginErr("⚠️ Server error. Redeploy GAS as new version in Apps Script.");
-      return;
-    }
-    if (res.ok) {
-      SESSION = res.user;
-      showApp();
-      return;
-    }
-    showLoginErr(res.error || "Login failed — wrong username or password.");
+    const res = await api({ action:"login", username:u, password:p });
+    if (res.ok) { SESSION = res.user; showApp(); }
+    else showLoginErr(res.error || "Login failed. Check credentials.");
   } catch(e) {
-    console.error("Login fetch error:", e);
-    showLoginErr("⚠️ Cannot reach server: " + e.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = "Sign In →";
+    console.error("Login error:", e);
+    const msg = e.message.includes("Failed to fetch") || e.message.includes("NetworkError")
+      ? "Cannot reach server. Check your internet connection or the GAS URL."
+      : "Connection error: " + e.message;
+    showLoginErr(msg);
   }
+  btn.disabled = false; btn.textContent = "Sign In →";
 }
 
 function showLoginErr(msg) {
@@ -748,7 +711,6 @@ document.addEventListener("keydown", e => {
 function switchTab(tab) {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab===tab));
   document.querySelectorAll(".tab-panel").forEach(p => p.classList.toggle("active", p.id===`tab-${tab}`));
-  syncFilterDates(tab);
   if (tab==="attendance" && !ATTENDANCE) loadAttendance();
   if (tab==="finance"    && !FINANCE_DATA) loadFinance();
 }
@@ -1078,126 +1040,6 @@ async function confirmUpload() {
 // ============================================================
 // ATTENDANCE GRID
 // ============================================================
-// ── Date Filter Helpers ──────────────────────────────────────────────────────
-
-// Convert DD/MM/YYYY or DD/MM to YYYY-MM-DD for comparison with <input type=date>
-function dateKeyToISO(dk) {
-  if (!dk) return "";
-  const p = String(dk).split("/");
-  if (p.length >= 3) return `${p[2]}-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;
-  if (p.length === 2) return `2026-${p[1].padStart(2,"0")}-${p[0].padStart(2,"0")}`;
-  return "";
-}
-
-// Filter attendance data by the att From/To pickers
-function filterAttendanceData(data) {
-  const from = document.getElementById("attFrom").value; // YYYY-MM-DD or ""
-  const to   = document.getElementById("attTo").value;
-  const badge = document.getElementById("attFilterBadge");
-
-  if (!from && !to) {
-    badge.style.display = "none";
-    return data; // no filter
-  }
-  badge.style.display = "inline";
-
-  const filteredDays = data.days.filter(dk => {
-    const iso = dateKeyToISO(dk);
-    if (from && iso < from) return false;
-    if (to   && iso > to)   return false;
-    return true;
-  });
-
-  const filteredEmps = data.employees.map(emp => {
-    const days = {};
-    filteredDays.forEach(d => { if (emp.days[d]) days[d] = emp.days[d]; });
-    return { ...emp, days };
-  });
-
-  return { ...data, days: filteredDays, employees: filteredEmps };
-}
-
-// Filter finance data by the fin From/To pickers — recalculates KPI totals
-function filterFinanceData(data) {
-  const from  = document.getElementById("finFrom").value;
-  const to    = document.getElementById("finTo").value;
-  const badge = document.getElementById("finFilterBadge");
-
-  if (!from && !to) {
-    badge.style.display = "none";
-    return data;
-  }
-  badge.style.display = "inline";
-
-  const filteredReport = (data.report || []).filter(r => {
-    const iso = dateKeyToISO(r.date);
-    if (from && iso < from) return false;
-    if (to   && iso > to)   return false;
-    return true;
-  });
-
-  // Recalculate summary totals for the filtered range
-  let totalMoneyDed = 0, totalMissingPunch = 0, totalMissingPunchDed = 0, totalFinalDed = 0;
-  filteredReport.forEach(r => {
-    totalMoneyDed        += r.moneyDed        || 0;
-    totalMissingPunch    += r.missingPunch     || 0;
-    totalMissingPunchDed += r.missingPunchDed  || 0;
-    totalFinalDed        += r.finalDed         || 0;
-  });
-
-  return {
-    ...data,
-    report: filteredReport,
-    summary: {
-      ...data.summary,
-      totalMoneyDed:        Math.round(totalMoneyDed * 100) / 100,
-      totalMissingPunch,
-      totalMissingPunchDed: Math.round(totalMissingPunchDed * 100) / 100,
-      totalFinalDed:        Math.round(totalFinalDed * 100) / 100
-    }
-  };
-}
-
-// Apply filter callbacks (called on picker change)
-function applyAttFilter() {
-  if (!ATTENDANCE) return;
-  renderGrid(filterAttendanceData(ATTENDANCE));
-}
-function applyFinFilter() {
-  if (!FINANCE_DATA) return;
-  renderFinance(filterFinanceData(FINANCE_DATA));
-}
-
-// Clear filters
-function clearAttFilter() {
-  document.getElementById("attFrom").value = "";
-  document.getElementById("attTo").value   = "";
-  document.getElementById("attFilterBadge").style.display = "none";
-  if (ATTENDANCE) renderGrid(ATTENDANCE);
-}
-function clearFinFilter() {
-  document.getElementById("finFrom").value = "";
-  document.getElementById("finTo").value   = "";
-  document.getElementById("finFilterBadge").style.display = "none";
-  if (FINANCE_DATA) renderFinance(FINANCE_DATA);
-}
-
-// Sync Attendance → Finance pickers when switching tabs (convenience)
-function syncFilterDates(tab) {
-  if (tab === "finance") {
-    const af = document.getElementById("attFrom").value;
-    const at = document.getElementById("attTo").value;
-    if (af && !document.getElementById("finFrom").value) document.getElementById("finFrom").value = af;
-    if (at && !document.getElementById("finTo").value)   document.getElementById("finTo").value   = at;
-  } else if (tab === "attendance") {
-    const ff = document.getElementById("finFrom").value;
-    const ft = document.getElementById("finTo").value;
-    if (ff && !document.getElementById("attFrom").value) document.getElementById("attFrom").value = ff;
-    if (ft && !document.getElementById("attTo").value)   document.getElementById("attTo").value   = ft;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 async function loadAttendance() {
   document.getElementById("attendanceContent").innerHTML =
     `<div class="state-loading"><div class="spinner"></div>Loading…</div>`;
@@ -1205,7 +1047,7 @@ async function loadAttendance() {
     const res = await api({ action:"getProcessed", flagship:SESSION.flagship, username:SESSION.username });
     if (!res.ok) throw new Error(res.error);
     ATTENDANCE = res;
-    renderGrid(filterAttendanceData(res));
+    renderGrid(res);
   } catch(e) {
     document.getElementById("attendanceContent").innerHTML =
       `<div class="state-empty"><div class="state-icon">❌</div>${e.message}</div>`;
@@ -1370,6 +1212,8 @@ async function loadFinance() {
   document.getElementById("financeTableWrapper").innerHTML =
     `<div class="state-loading"><div class="spinner"></div>Calculating…</div>`;
   try {
+    // Send RANGES directly so GAS never needs to read them from the sheet
+    // This bypasses all Sheets date-format ambiguity for the headcount lookup
     const res = await api({
       action:    "getFinance",
       flagship:  SESSION.flagship,
@@ -1382,7 +1226,7 @@ async function loadFinance() {
     });
     if (!res.ok) throw new Error(res.error);
     FINANCE_DATA = res;
-    renderFinance(filterFinanceData(res));
+    renderFinance(res);
   } catch(e) {
     document.getElementById("financeTableWrapper").innerHTML =
       `<div class="state-empty"><div class="state-icon">❌</div>${e.message}</div>`;
@@ -1648,23 +1492,11 @@ function normalizePunch(raw) {
 // ============================================================
 async function api(payload) {
   const res = await fetch(GAS_URL, {
-    method: "POST",
-    body: JSON.stringify(payload),
-    headers: { "Content-Type": "text/plain" },
-    redirect: "follow"
+    method:"POST", body:JSON.stringify(payload),
+    headers:{"Content-Type":"text/plain"}
   });
-  if (!res.ok) throw new Error("HTTP " + res.status);
-  const text = await res.text();
-  try {
-    return JSON.parse(text);
-  } catch(e) {
-    // GAS returned HTML (redirect to login page) or unexpected content
-    if (text.includes("google.com/accounts") || text.includes("signin")) {
-      throw new Error("GAS_AUTH: Web App requires Google login — set Access to 'Anyone'");
-    }
-    console.error("GAS raw response:", text.substring(0, 200));
-    throw new Error("Invalid response. Check GAS deployment — it may need to be set to 'Anyone' access.");
-  }
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  return res.json();
 }
 
 async function runDebug() {
