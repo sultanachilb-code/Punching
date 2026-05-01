@@ -1198,7 +1198,7 @@ function syncFilterDates(tab) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-function loadAttendance() {
+async function loadAttendance() {
   document.getElementById("attendanceContent").innerHTML =
     `<div class="state-loading"><div class="spinner"></div>Loading…</div>`;
   try {
