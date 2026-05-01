@@ -657,28 +657,8 @@ if (typeof pdfjsLib !== 'undefined') {
 const GAS_URL = "https://script.google.com/macros/s/AKfycbxjRmc59YkhlHA_3qRumCbLq4zEc0WM3GyE9z9UEyD2Kcz8hbm5EmNFBStIT3snli82Zw/exec";
 
 // Ping GAS on load to verify connectivity — shows warning if unreachable
-(async function pingOnLoad() {
-  try {
-    const res  = await fetch(GAS_URL, {
-      method: "POST", body: JSON.stringify({action:"ping"}),
-      headers: {"Content-Type":"text/plain"}, redirect: "follow"
-    });
-    const text = await res.text();
-    let d = null;
-    try { d = JSON.parse(text); } catch(e) { d = null; }
-    if (d && d.ver) {
-      // GAS reachable — show version in badge tooltip
-      const verEl = document.querySelector(".login-right-badge");
-      if (verEl) verEl.title = "GAS v" + d.ver + " ✓ connected";
-      verEl && (verEl.style.background = "#22c55e");
-    } else {
-      // Got a response but not valid JSON — likely needs redeployment
-      showLoginErr("⚠️ GAS returned unexpected response. Redeploy as new version in Apps Script.");
-    }
-  } catch(e) {
-    showLoginErr("⚠️ Cannot reach server. Check internet connection.");
-  }
-})();
+// Ping is disabled — prevents any errors blocking the login screen
+// (async function pingOnLoad() { ... })();
 
 // ============================================================
 // STATE
@@ -693,29 +673,46 @@ let EDIT_CTX      = null; // { empId, empName, dateKey, currentRecord }
 // AUTH
 // ============================================================
 async function doLogin() {
-  const u = document.getElementById("loginUser").value.trim();
-  const p = document.getElementById("loginPass").value;
-  if (!u || !p) { showLoginErr("Please enter username and password."); return; }
+  const u = (document.getElementById("loginUser").value || "").trim();
+  const p = (document.getElementById("loginPass").value || "");
   const btn = document.getElementById("loginBtn");
-  btn.disabled = true; btn.textContent = "Signing in…";
-  showLoginErr(""); // clear previous error
+
+  if (!u || !p) { showLoginErr("Enter username and password."); return; }
+
+  // Disable button
+  btn.disabled = true;
+  btn.textContent = "Signing in…";
+  showLoginErr("");
+
+  let res = null;
   try {
-    const res = await api({ action:"login", username:u, password:p });
-    if (res.ok) { SESSION = res.user; showApp(); }
-    else showLoginErr(res.error || "Login failed. Check credentials.");
-  } catch(e) {
-    console.error("Login error:", e);
-    let msg = "Connection error: " + e.message;
-    if (e.message.includes("Failed to fetch") || e.message.includes("NetworkError") || e.message.includes("Load failed")) {
-      msg = "⚠️ Cannot reach server. Check internet connection.";
-    } else if (e.message.includes("GAS_AUTH")) {
-      msg = "⚠️ GAS Web App not public. In Apps Script: Deploy → Manage → Edit → Access: Anyone.";
-    } else if (e.message.includes("Redeploy") || e.message.includes("Invalid response")) {
-      msg = "⚠️ Server returned unexpected response. Please redeploy GAS as a new version.";
+    const raw = await fetch(GAS_URL, {
+      method: "POST",
+      body: JSON.stringify({ action: "login", username: u, password: p }),
+      headers: { "Content-Type": "text/plain" },
+      redirect: "follow"
+    });
+    const text = await raw.text();
+    console.log("GAS raw response:", text.substring(0, 200));
+    try {
+      res = JSON.parse(text);
+    } catch(parseErr) {
+      showLoginErr("⚠️ Server error. Redeploy GAS as new version in Apps Script.");
+      return;
     }
-    showLoginErr(msg);
+    if (res.ok) {
+      SESSION = res.user;
+      showApp();
+      return;
+    }
+    showLoginErr(res.error || "Login failed — wrong username or password.");
+  } catch(e) {
+    console.error("Login fetch error:", e);
+    showLoginErr("⚠️ Cannot reach server: " + e.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Sign In →";
   }
-  btn.disabled = false; btn.textContent = "Sign In →";
 }
 
 function showLoginErr(msg) {
@@ -1665,7 +1662,8 @@ async function api(payload) {
     if (text.includes("google.com/accounts") || text.includes("signin")) {
       throw new Error("GAS_AUTH: Web App requires Google login — set Access to 'Anyone'");
     }
-    throw new Error("Invalid response from server. Redeploy GAS as new version.");
+    console.error("GAS raw response:", text.substring(0, 200));
+    throw new Error("Invalid response. Check GAS deployment — it may need to be set to 'Anyone' access.");
   }
 }
 
